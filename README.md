@@ -11,6 +11,8 @@ Addon do Stremio que roda na própria box Android/Google TV e garante a legenda 
 - Passa os streams do Torrentio e do Sootio (com Real-Debrid) sem alterar nada — e assim sabe qual arquivo está tocando
 - Anime pelo catálogo Anime Kitsu: converte os ids do Kitsu para os do IMDb (inclusive numeração absoluta de episódios)
 
+**Vai instalar? Comece pelo [guia](docs/GUIA.md)** — requisitos, o que preparar e o passo a passo.
+
 Tudo configurável em um único arquivo — veja [`config.example.yaml`](config.example.yaml) e [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md).
 
 > Fases 0–3 do [plano](docs/PLANO-DESENVOLVIMENTO.md) concluídas e em uso. Sincronização pelo áudio/legenda embutida (fase 4) e tradução automática ficam para quando houver necessidade.
@@ -42,6 +44,7 @@ Na box roda só o JavaScript compilado (executar TypeScript direto custaria ~20 
 
 | Documento | Conteúdo |
 |---|---|
+| [GUIA.md](docs/GUIA.md) | **Comece aqui:** requisitos, o que preparar, passo a passo, atualizar |
 | [PLANO-DESENVOLVIMENTO.md](docs/PLANO-DESENVOLVIMENTO.md) | Objetivo, arquitetura, fases |
 | [INSTALACAO-BOX.md](docs/INSTALACAO-BOX.md) | Instalação e operação na box |
 | [CONFIGURACAO.md](docs/CONFIGURACAO.md) | Todas as opções do `config.yaml` |

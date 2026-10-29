@@ -45,4 +45,4 @@ O projeto vai ser compartilhado com amigos que usam o Stremio em **vários apare
 4. Instalação e atualização são feitas a partir de um computador (Mac, Linux ou Windows com WSL/Git Bash) pela rede de casa.
 5. Antes de compartilhar o repositório, **revisar dados pessoais**: o `CLAUDE.md` tem o IP da box deste usuário e detalhes do ambiente; o `DESCOBERTAS.md` tem nomes de arquivos assistidos. Trocar por exemplos genéricos ou mover para um arquivo fora do git.
 
-Base para o guia: [INSTALACAO-BOX.md](INSTALACAO-BOX.md) (já está genérico, com IP de exemplo `192.168.0.50`).
+Guia criado: [GUIA.md](GUIA.md) (2026-10-29) — cobre os pontos acima e aponta para as seções de [INSTALACAO-BOX.md](INSTALACAO-BOX.md). Para dar acesso a um amigo: GitHub → repositório → Settings → Collaborators → Add people.
