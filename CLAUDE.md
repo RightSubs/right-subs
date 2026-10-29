@@ -4,6 +4,8 @@ Addon do Stremio que roda na box do usuário (Chromecast com Google TV 4K, via T
 
 Documento de referência: [docs/PLANO-DESENVOLVIMENTO.md](docs/PLANO-DESENVOLVIMENTO.md). Retomada: [docs/PROXIMOS-PASSOS.md](docs/PROXIMOS-PASSOS.md).
 
+Repositório **privado** no GitHub (`origin`, branch `main`). Nunca versionar `.env`, `config.yaml` nem `CLAUDE.local.md` (dados do ambiente do usuário, como o IP da box); antes de cada commit, conferir que nenhum valor do `.env` aparece nos arquivos. Autor dos commits deste projeto: o configurado no `git config` local do repositório.
+
 ## Estado atual
 
 - **Fase 0 aceita na box** (2026-10-29; falta só confirmar 24 h no ar). Box: Node 24.22.1, ffmpeg 9.0.2, ocioso ~50 MB. Acesso pelo Mac: `ssh -p 8022 <IP da box>` (chave, sem senha; `sshd` precisa ser iniciado no Termux após reiniciar a box); deploy: `BOX=<IP da box> sh scripts/deploy-from-mac.sh`. O IP e outros dados do ambiente deste usuário ficam em `CLAUDE.local.md` (fora do git).

@@ -19,7 +19,6 @@ O que o Claude confere:
 | Item | Quando |
 |---|---|
 | Confirmar 24 h no ar (fase 0) | Na próxima vez que acessar a box |
-| Enviar o projeto para o git (repositório **privado**) | Quando o usuário quiser. O `.gitignore` já exclui `.env`, `config.yaml`, `node_modules/` e `dist/`; conferir com `git status` antes do primeiro commit |
 | Consumer da OpenSubtitles: desmarcar **Under dev** | Quando for conveniente (o uso já é "produção"; não afeta, pois o login é usado) |
 | Uma semana de uso sem intervenção (aceite da fase 5) | Uso normal |
 
