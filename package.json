@@ -1,0 +1,26 @@
+{
+  "name": "right-subs",
+  "version": "0.1.0",
+  "description": "Stremio addon that delivers the right subtitle, in your language, automatically synced.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "dev": "node src/server.ts",
+    "check-config": "node dist/server.js --check",
+    "test": "node --test --test-timeout=30000 \"test/**/*.test.ts\"",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
