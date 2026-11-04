@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone in portrait: one language list per line, at full width. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/language_primary"
+        android:textColor="@color/muted" />
+
+    <Spinner
+        android:id="@+id/language_primary"
+        style="@style/Dropdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:spinnerMode="dialog" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/language_secondary"
+        android:textColor="@color/muted" />
+
+    <Spinner
+        android:id="@+id/language_secondary"
+        style="@style/Dropdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:spinnerMode="dialog" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/language_reference"
+        android:textColor="@color/muted" />
+
+    <Spinner
+        android:id="@+id/language_reference"
+        style="@style/Dropdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:spinnerMode="dialog" />
+</merge>

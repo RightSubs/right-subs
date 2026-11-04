@@ -1,11 +1,29 @@
-node_modules/
-dist/
+build/
+out/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
 
-# Local configuration, secrets and personal environment — never commit
-config.yaml
+# Real credentials (only for local tests; no build reads them) — never commit
 .env
+*.env
+
+# Test APKs carry credentials or logs: never in git (out/ and build/ are already ignored; this is belt and braces)
+*-prefill*.apk
+*-debuglog*.apk
+prefill.json
+NAO-DISTRIBUIR.txt
+
+# Signing key and its passwords — never commit, keep a backup (needed to publish updates)
+signing/
+
+# Personal environment (box IP…)
 CLAUDE.local.md
+
+.DS_Store
+*.log
 .claude/settings.local.json
 
-*.log
-.DS_Store
+# Anotações de trabalho locais
+tasks/

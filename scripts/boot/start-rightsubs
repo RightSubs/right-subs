@@ -1,4 +1,0 @@
-#!/data/data/com.termux/files/usr/bin/sh
-# Termux:Boot entry point — installed into ~/.termux/boot/ by scripts/install-termux.sh.
-termux-wake-lock
-exec sh "__ROOT__/scripts/rightsubs.sh" start

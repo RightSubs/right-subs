@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every control is reachable with the D-pad. The parts that depend on the screen width
+     are includes with two variants: layout/ (phone in portrait) and layout-w720dp/ (TV,
+     tablet, phone in landscape); margins come from values(-w720dp)/dimens.xml, wide on
+     TVs because they crop the edges (overscan). -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/screen_padding_horizontal"
+        android:paddingVertical="@dimen/screen_padding_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/text"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/success"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/status_detail"
+            style="@style/Mono"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/health"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/muted"
+            android:visibility="gone" />
+
+        <!-- Status and actions -->
+        <LinearLayout
+            android:id="@+id/main_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="@string/manifest_label"
+                android:textColor="@color/muted" />
+
+            <TextView
+                android:id="@+id/manifest_url"
+                style="@style/Mono"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textIsSelectable="true"
+                android:textSize="18sp" />
+
+            <include layout="@layout/main_actions" />
+
+            <!-- Subtitle languages: not secret, applied right away (the addon restarts). -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="@string/languages_title"
+                android:textColor="@color/text"
+                android:textSize="18sp" />
+
+            <include layout="@layout/languages" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/languages_hint"
+                android:textColor="@color/muted" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/how_to"
+                android:textColor="@color/muted" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/first_time_note"
+                android:textColor="@color/muted" />
+
+            <TextView
+                android:id="@+id/log"
+                style="@style/Mono"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@color/surface"
+                android:focusable="true"
+                android:padding="12dp"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Credentials. Autofill off and saveEnabled=false: no other app (autofill
+             service) receives the values and they are not kept in the saved state. -->
+        <LinearLayout
+            android:id="@+id/form_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:importantForAutofill="noExcludeDescendants"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/phone_setup"
+                style="@style/Action"
+                android:layout_marginBottom="12dp"
+                android:text="@string/phone_setup" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/form_intro"
+                android:textColor="@color/text" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/form_security"
+                android:textColor="@color/muted" />
+
+            <EditText
+                android:id="@+id/api_key"
+                style="@style/Field"
+                android:imeOptions="flagNoPersonalizedLearning|flagNoExtractUi|actionNext"
+                android:inputType="textPassword" />
+
+            <EditText
+                android:id="@+id/user"
+                style="@style/Field"
+                android:imeOptions="flagNoPersonalizedLearning|flagNoExtractUi|actionNext"
+                android:inputType="text|textNoSuggestions" />
+
+            <EditText
+                android:id="@+id/password"
+                style="@style/Field"
+                android:imeOptions="flagNoPersonalizedLearning|flagNoExtractUi|actionNext"
+                android:inputType="textPassword" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/rd_intro"
+                android:textColor="@color/muted" />
+
+            <EditText
+                android:id="@+id/rd_token"
+                style="@style/Field"
+                android:imeOptions="flagNoPersonalizedLearning|flagNoExtractUi|actionNext"
+                android:inputType="textPassword" />
+
+            <CheckBox
+                android:id="@+id/remove_rd"
+                style="@style/Check"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/remove_rd"
+                android:textColor="@color/text" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/deepl_intro"
+                android:textColor="@color/muted" />
+
+            <EditText
+                android:id="@+id/deepl_key"
+                style="@style/Field"
+                android:imeOptions="flagNoPersonalizedLearning|flagNoExtractUi|actionDone"
+                android:inputType="textPassword" />
+
+            <CheckBox
+                android:id="@+id/remove_deepl"
+                style="@style/Check"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/remove_deepl"
+                android:textColor="@color/text" />
+
+            <CheckBox
+                android:id="@+id/show_values"
+                style="@style/Check"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:saveEnabled="false"
+                android:text="@string/show_values"
+                android:textColor="@color/text" />
+
+            <TextView
+                android:id="@+id/form_errors"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/error"
+                android:visibility="gone" />
+
+            <include layout="@layout/form_actions" />
+        </LinearLayout>
+
+        <!-- Credentials typed on a phone: QR + address + one-time code (PhoneSetupServer). -->
+        <include layout="@layout/phone_panel" />
+    </LinearLayout>
+</ScrollView>

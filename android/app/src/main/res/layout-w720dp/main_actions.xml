@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wide screens (TV): the four actions in one row. -->
+<HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/install_stremio"
+            style="@style/ActionPrimary"
+            android:text="@string/install_stremio">
+
+            <requestFocus />
+        </Button>
+
+        <Button
+            android:id="@+id/edit_credentials"
+            style="@style/Action"
+            android:text="@string/edit_credentials" />
+
+        <Button
+            android:id="@+id/restart"
+            style="@style/Action"
+            android:text="@string/restart" />
+
+        <Button
+            android:id="@+id/show_log"
+            style="@style/Action"
+            android:text="@string/show_log" />
+    </LinearLayout>
+</HorizontalScrollView>

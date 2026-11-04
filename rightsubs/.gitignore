@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+
+# Local configuration, secrets and personal environment — never commit
+config.yaml
+.env
+CLAUDE.local.md
+.claude/settings.local.json
+
+*.log
+.DS_Store
