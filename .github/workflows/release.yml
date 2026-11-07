@@ -1,0 +1,106 @@
+# Publishes a GitHub release when a version tag (vX.Y.Z) is pushed: builds the APKs in the same
+# container as local builds, signs them with the organization's key (repository secrets) and
+# attaches them with SHA256SUMS.txt, BUILD-INFO.txt and the CHANGELOG notes of the version.
+#
+# Secrets (Settings › Secrets and variables › Actions), see README › Releases:
+#   SIGNING_KEYSTORE_BASE64    the PKCS12 keystore, base64-encoded
+#   SIGNING_KEYSTORE_PASSWORD  its password (PKCS12: the same for the store and the key)
+#   SIGNING_KEY_ALIAS          the key alias (rightsubs when created as in the README)
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Forks have neither the key nor a reason to publish.
+    if: github.repository_owner == 'RightSubs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the build provenance
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag, VERSION and CHANGELOG agree
+        id: version
+        run: |
+          version=$(tr -d ' \r\n' < VERSION)
+          tag=${GITHUB_REF_NAME}
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::tag $tag does not match VERSION $version (expected v$version)"
+            exit 1
+          fi
+          sh scripts/release-notes.sh "$version" > "$RUNNER_TEMP/notes.md"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker
+          tags: rightsubs-apk-builder
+          load: true
+          cache-from: type=gha,scope=builder
+          cache-to: type=gha,mode=max,scope=builder
+
+      # Termux packages and the ffmpeg build (the slow part), keyed on what produces them.
+      - uses: actions/cache@v4
+        with:
+          path: build/cache
+          key: build-cache-${{ hashFiles('scripts/build-ffmpeg.sh', 'scripts/termux-node.mjs', 'patches/**') }}
+          restore-keys: build-cache-
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::signing secrets missing (see README › Releases)"
+            exit 1
+          fi
+          mkdir -p signing
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > signing/release.p12
+          # Paths as the build container sees them (/work is the repository).
+          printf 'storeFile=/work/signing/release.p12\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEYSTORE_PASSWORD" > signing/keystore.properties
+          chmod 600 signing/release.p12 signing/keystore.properties
+
+      - name: Build (with the addon tests)
+        run: REQUIRE_SIGNING_KEY=1 SKIP_IMAGE_BUILD=1 RUN_TESTS=1 sh build.sh
+
+      - name: Remove the signing key
+        if: always()
+        run: sudo rm -rf signing
+
+      - name: Nothing for testing only
+        run: |
+          if [ -e out/DO-NOT-DISTRIBUTE.txt ] || ls out | grep -qE -- '-(prefill|debuglog)'; then
+            echo "::error::test build in out/"
+            exit 1
+          fi
+          ls -l out
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/*.apk
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/*.apk out/SHA256SUMS.txt out/BUILD-INFO.txt \
+            --title "RightSubs $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

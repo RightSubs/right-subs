@@ -48,40 +48,40 @@ report() { echo "  ✗ $*" >&2; problems=$((problems + 1)); }
 
 case $MODE in
   apk)
-    [ "$#" -gt 0 ] || { echo "uso: check-no-secrets.sh apk <apk>..." >&2; exit 2; }
+    [ "$#" -gt 0 ] || { echo "usage: check-no-secrets.sh apk <apk>..." >&2; exit 2; }
     for apk in "$@"; do
       tmp=$(mktemp -d)
-      unzip -q "$apk" -d "$tmp/x" || { report "não consegui abrir $(basename "$apk")"; rm -rf "$tmp"; continue; }
+      unzip -q "$apk" -d "$tmp/x" || { report "could not open $(basename "$apk")"; rm -rf "$tmp"; continue; }
       if [ -f "$tmp/x/assets/rightsubs.zip" ]; then
         mkdir "$tmp/p" && unzip -q "$tmp/x/assets/rightsubs.zip" -d "$tmp/p"
       fi
-      [ -e "$tmp/x/assets/prefill.json" ] && report "$(basename "$apk"): assets/prefill.json dentro do APK"
+      [ -e "$tmp/x/assets/prefill.json" ] && report "$(basename "$apk"): assets/prefill.json inside the APK"
       if find "$tmp" \( -name '.env' -o -name 'config.yaml' -o -name 'CLAUDE.local.md' \) | grep -q .; then
-        report "$(basename "$apk"): arquivo de configuração local dentro do APK"
+        report "$(basename "$apk"): local configuration file inside the APK"
       fi
       for i in "${!names[@]}"; do
-        grep -rqF -- "${values[$i]}" "$tmp" && report "$(basename "$apk"): valor de ${names[$i]} (do .env) dentro do APK"
+        grep -rqF -- "${values[$i]}" "$tmp" && report "$(basename "$apk"): value of ${names[$i]} (from .env) inside the APK"
       done
       rm -rf "$tmp"
     done
     ;;
   staged)
     cd "$ROOT" || exit 2
-    bad=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)\.env$|\.env$|^signing/|^out/|^build/|CLAUDE\.local\.md$|\.apk$|prefill\.json$|local\.properties$|NAO-DISTRIBUIR\.txt$' || true)
-    [ -z "$bad" ] || while IFS= read -r f; do report "arquivo que não vai para o git: $f"; done <<< "$bad"
+    bad=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)\.env$|\.env$|^signing/|^out/|^build/|CLAUDE\.local\.md$|\.apk$|prefill\.json$|local\.properties$|\.(p12|jks|keystore)$|DO-NOT-DISTRIBUTE\.txt$' || true)
+    [ -z "$bad" ] || while IFS= read -r f; do report "file that must not go into git: $f"; done <<< "$bad"
     for i in "${!names[@]}"; do
       where=$(git grep --cached -lIF -- "${values[$i]}" 2>/dev/null | head -n 3 | tr '\n' ' ')
-      [ -z "$where" ] || report "valor de ${names[$i]} (do .env) em: $where"
+      [ -z "$where" ] || report "value of ${names[$i]} (from .env) in: $where"
     done
     ;;
   *)
-    echo "uso: check-no-secrets.sh apk <apk>... | staged" >&2
+    echo "usage: check-no-secrets.sh apk <apk>... | staged" >&2
     exit 2
     ;;
 esac
 
 if [ "$problems" -gt 0 ]; then
-  echo "BLOQUEADO: $problems problema(s) com credenciais ou arquivos locais (acima)." >&2
+  echo "BLOCKED: $problems problem(s) with credentials or local files (above)." >&2
   exit 1
 fi
-echo "ok: nenhuma credencial do .env em ${MODE}"
+echo "ok: no .env credential in ${MODE}"

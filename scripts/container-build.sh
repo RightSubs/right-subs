@@ -12,7 +12,7 @@ SIGNING=$W/signing
 rm -rf "$GEN" /tmp/termux
 mkdir -p "$GEN/assets" "$GEN/jniLibs" "$OUT" "$B/cache"
 
-echo "==> Node.js (pacotes do Termux)"
+echo "==> Node.js (Termux packages)"
 # shellcheck disable=SC2086 # ABIS is a list
 node "$W/scripts/termux-node.mjs" --cache "$B/cache" --stage /tmp/termux --out "$GEN" $ABIS
 
@@ -25,7 +25,7 @@ node "$W/scripts/termux-node.mjs" --check "$GEN" $ABIS
 
 # One version for the APK and the addon it ships (VERSION file, semver): checked before anything is built.
 APP_VERSION=$(tr -d ' \r\n' < "$W/VERSION")
-[[ $APP_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION inválida: '$APP_VERSION' (use X.Y.Z)" >&2; exit 1; }
+[[ $APP_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "invalid VERSION: '$APP_VERSION' (use X.Y.Z)" >&2; exit 1; }
 export APP_VERSION
 
 echo "==> RightSubs"
@@ -40,12 +40,18 @@ DEBUG_LOG=${DEBUG_LOG:-0}
 # The APK holds them in plain text: never distribute it.
 PREFILL=${PREFILL:-0}
 if [ "$PREFILL" = 1 ]; then
-  echo "==> Credenciais de teste (prefill) a partir do .env"
+  echo "==> Test credentials (prefill) from .env"
   node "$W/scripts/write-prefill.mjs" "$W/.env" "$GEN/assets/prefill.json"
   SUFFIX="$SUFFIX-prefill"
 fi
 
-echo "==> Chave de assinatura"
+echo "==> Signing key"
+# Releases (GitHub Actions) bring the organization's key from the repository secrets and set
+# REQUIRE_SIGNING_KEY=1: a new key there would make every release impossible to install over the last.
+if [ ! -f "$SIGNING/keystore.properties" ] && [ "${REQUIRE_SIGNING_KEY:-0}" = 1 ]; then
+  echo "ERROR: no signing key in signing/ and REQUIRE_SIGNING_KEY=1 — refusing to create a new one" >&2
+  exit 1
+fi
 if [ ! -f "$SIGNING/keystore.properties" ]; then
   mkdir -p "$SIGNING"
   password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=')
@@ -55,7 +61,7 @@ if [ ! -f "$SIGNING/keystore.properties" ]; then
   printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=rightsubs\nkeyPassword=%s\n' "$SIGNING/release.p12" "$password" "$password" \
     > "$SIGNING/keystore.properties"
   chmod 600 "$SIGNING/keystore.properties" "$SIGNING/release.p12"
-  echo "Chave nova em signing/ — FAÇA BACKUP: sem ela não dá para publicar atualizações do APK."
+  echo "New key in signing/ — BACK IT UP: without it no APK update can be published."
 fi
 
 echo "==> APK"
@@ -70,9 +76,11 @@ gradle -p /tmp/android --no-daemon --quiet \
   -PversionCode="$VERSION_CODE" -PversionName="$APP_VERSION" -PdebugLog="$([ "$DEBUG_LOG" = 1 ] && echo true || echo false)" \
   testReleaseUnitTest assembleRelease
 
-rm -f "$OUT"/*.apk "$OUT/SHA256SUMS.txt" "$OUT/BUILD-INFO.txt" "$OUT/NAO-DISTRIBUIR.txt"
+rm -f "$OUT"/*.apk "$OUT/SHA256SUMS.txt" "$OUT/BUILD-INFO.txt" "$OUT/DO-NOT-DISTRIBUTE.txt"
 for apk in /tmp/android/app/build/outputs/apk/release/*.apk; do
-  name=$(basename "$apk" | sed "s/^app-/rightsubs-$APP_VERSION-/; s/-release/$SUFFIX/")
+  # Fixed names (no version: it is in BUILD-INFO.txt and inside the APK), so that
+  # github.com/…/releases/latest/download/rightsubs-<abi>.apk always points at the newest release.
+  name=$(basename "$apk" | sed "s/^app-/rightsubs-/; s/-release/$SUFFIX/")
   apksigner verify "$apk"
   cp "$apk" "$OUT/$name"
 done
@@ -86,7 +94,7 @@ check_versions() {
     addon_version=$(unzip -p "$tmp/rightsubs.zip" package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
     rm -rf "$tmp"
     if [ "$apk_version" != "$APP_VERSION" ] || [ "$addon_version" != "$APP_VERSION" ]; then
-      echo "ERRO: versões diferentes em $(basename "$apk"): APK $apk_version, addon $addon_version, VERSION $APP_VERSION" >&2
+      echo "ERROR: different versions in $(basename "$apk"): APK $apk_version, addon $addon_version, VERSION $APP_VERSION" >&2
       rm -f "$OUT"/*.apk
       exit 1
     fi
@@ -99,25 +107,25 @@ check_versions "$OUT"/*.apk
 if [ "$PREFILL" != 1 ]; then
   if ! bash "$W/scripts/check-no-secrets.sh" apk "$OUT"/*.apk; then
     rm -f "$OUT"/*.apk
-    echo "ERRO: o APK carrega credenciais do .env — nenhum APK foi deixado em out/" >&2
+    echo "ERROR: the APK carries .env credentials — no APK was left in out/" >&2
     exit 1
   fi
 fi
 # Test builds say so next to the APKs.
 if [ "$PREFILL" = 1 ]; then
-  echo "ESTES APKs TÊM AS CREDENCIAIS DO .env EM TEXTO PURO (assets/prefill.json). Só para os seus testes: NUNCA distribua nem envie a ninguém." > "$OUT/NAO-DISTRIBUIR.txt"
+  echo "THESE APKs CARRY THE .env CREDENTIALS IN PLAIN TEXT (assets/prefill.json). For your own tests only: NEVER distribute them or send them to anyone." > "$OUT/DO-NOT-DISTRIBUTE.txt"
 elif [ "$DEBUG_LOG" = 1 ]; then
-  echo "ESTES APKs GRAVAM UM LOG COM OS FILMES ASSISTIDOS (-DebugLog). Só para os seus testes: NUNCA distribua nem envie a ninguém." > "$OUT/NAO-DISTRIBUIR.txt"
+  echo "THESE APKs WRITE A LOG WITH THE MOVIES WATCHED (-DebugLog). For your own tests only: NEVER distribute them or send them to anyone." > "$OUT/DO-NOT-DISTRIBUTE.txt"
 fi
 
 (cd "$OUT" && sha256sum ./*.apk > SHA256SUMS.txt)
 {
   echo "RightSubs APK $APP_VERSION (versionCode $VERSION_CODE${SUFFIX:+, $SUFFIX})"
   echo "apk: commit ${APK_COMMIT:-?}"
-  echo "addon: $(cat "$GEN/rightsubs-version.txt") (rightsubs/ do mesmo commit)"
+  echo "addon: $(cat "$GEN/rightsubs-version.txt") (rightsubs/ from the same commit)"
   cat "$GEN/node-version.txt"
   echo "ffmpeg: $(sed -n 's/^FFMPEG_VERSION=//p' "$W/scripts/build-ffmpeg.sh")"
-  echo "gerado: $(date -u +%Y-%m-%dT%H:%MZ)"
+  echo "built: $(date -u +%Y-%m-%dT%H:%MZ)"
 } > "$OUT/BUILD-INFO.txt"
 cat "$OUT/BUILD-INFO.txt"
 ls -lh "$OUT"

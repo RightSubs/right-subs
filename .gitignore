@@ -13,10 +13,13 @@ android/local.properties
 *-prefill*.apk
 *-debuglog*.apk
 prefill.json
-NAO-DISTRIBUIR.txt
+DO-NOT-DISTRIBUTE.txt
 
 # Signing key and its passwords — never commit, keep a backup (needed to publish updates)
 signing/
+*.p12
+*.jks
+*.keystore
 
 # Personal environment (box IP…)
 CLAUDE.local.md
@@ -25,5 +28,5 @@ CLAUDE.local.md
 *.log
 .claude/settings.local.json
 
-# Anotações de trabalho locais
+# Local work notes
 tasks/
