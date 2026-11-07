@@ -1,0 +1,4 @@
+# Everything runs on the box (Termux/Linux): keep LF even when cloned on Windows
+# (core.autocrlf=true would turn scripts/*.sh into CRLF and break them there).
+* text=auto eol=lf
+*.ps1 text eol=crlf

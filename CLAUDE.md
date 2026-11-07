@@ -1,75 +1,100 @@
-# RightSubs — contexto para o Claude
+# RightSubs APK — contexto para o Claude
 
-Addon do Stremio que roda na box do usuário (Chromecast com Google TV 4K, via Termux) e entrega legenda **sincronizada** no idioma principal (PT-BR) ou, se não existir, no secundário (EN). Objetivo do usuário: escolher qualquer arquivo, dar play e assistir — sem escolher player, legenda ou ajustar delay.
+Empacota o [RightSubs](rightsubs/) (addon do Stremio em Node.js; contexto dele em [rightsubs/CLAUDE.md](rightsubs/CLAUDE.md)) num APK para Android TV/Google TV e celular: sem Termux, credenciais digitadas na primeira abertura e guardadas com segurança. O usuário escreve em português; mensagens ao usuário, docs e textos do app em **português**, código e comentários em **inglês** (mesma convenção do right-subs).
 
-Documento de referência: [docs/PLANO-DESENVOLVIMENTO.md](docs/PLANO-DESENVOLVIMENTO.md). Retomada: [docs/PROXIMOS-PASSOS.md](docs/PROXIMOS-PASSOS.md).
+Documentação para quem instala: [README.md](README.md). Dados do ambiente deste usuário (IP da box etc.) ficam em `CLAUDE.local.md`, **fora do git**.
 
-Repositório **privado** no GitHub (`origin`, branch `main`). Nunca versionar `.env`, `config.yaml` nem `CLAUDE.local.md` (dados do ambiente do usuário, como o IP da box); antes de cada commit, conferir que nenhum valor do `.env` aparece nos arquivos. Autor dos commits deste projeto: o configurado no `git config` local do repositório.
+## Arquitetura (decidida, não reabrir sem motivo)
 
-## Estado atual
-
-- **Fase 0 aceita na box** (2026-10-29; falta só confirmar 24 h no ar). Box: Node 24.22.1, ffmpeg 9.0.2, ocioso ~50 MB. Acesso pelo Mac: `ssh -p 8022 <IP da box>` (chave, sem senha; `sshd` precisa ser iniciado no Termux após reiniciar a box); deploy: `BOX=<IP da box> sh scripts/deploy-from-mac.sh`. O IP e outros dados do ambiente deste usuário ficam em `CLAUDE.local.md` (fora do git).
-- **Fase 1 aceita** (2026-10-29): no EXO a faixa do RightSubs vem selecionada sozinha; OpenSubtitles v3 removido do Stremio (RightSubs é a única fonte). Fallback EN e embutida PT-BR × addon: validar quando ocorrerem naturalmente (decisão do usuário). MPV funciona (relato do usuário); EXO segue como player.
-- **Fase 2** (92 testes), tudo instalado na box:
-  - Sincronização texto×texto (`src/sync/align.ts`): votação de offsets entre inícios de falas + 7 razões de fps, score = sobreposição de fala; aplica se confiança ≥ `sync.minConfidence` e ganho ≥ 0,1. Referência = candidato do arquivo exato (`isExact`: hash, ou nome de release ≥ 5 tokens contido no nome do arquivo), qualquer idioma, gratuito primeiro. Valkyrie/Licdom **validado na TV**.
-  - Ranking (`src/subtitles/rank.ts`): exato > grupo (+80) > origem bluray/web/hdtv/dvd (±) > resolução; fps do vídeo inferido das legendas exatas (±30); SDH −10; gratuito ou já em cache +15. Com sincronização sem confiança, tenta o próximo candidato **gratuito**.
-  - **Fase 2 aceita** (2026-10-29). Decisão do usuário: **sem golden set** (uso pessoal) — quando um título vier dessincronizado ele traz para análise (log da box + medição como no Valkyrie).
-- **Fase 3** (105 testes): `streams.indexers` (Torrentio + Sootio, URLs no `.env`, habilitados no `config.yaml` do Mac e da box); `/stream` devolve as listas idênticas (verificado na box: nomes, ordem e links iguais); mapa nome do arquivo → URL (`src/streams/proxy.ts`, nunca logar URLs: têm a chave do RD); ffprobe sob demanda iniciado já no pedido de legendas (`src/media/inspector.ts`, ~1,5 s na box) → fps real no ranking + correção só de fps sem referência (`fps_corrected`). Achado: arquivos WEB costumam ter legenda **embutida em texto** (ETHEL: subrip eng SDH) — referência para a fase 4. **Fase 3 aceita** (2026-10-29): no Stremio da TV só o RightSubs está instalado (Torrentio e Sootio passam por ele); Valkyrie/Licdom tocado pela lista do proxy: streams em 0,59 s, ffprobe 1,6 s, legenda sincronizada.
-- **Anime (Kitsu)** (2026-10-29, 113 testes, instalado na box): manifest aceita `kitsu` em subtitles; `src/stremio/kitsu.ts` mapeia `kitsu:{id}:{ep}` → IMDb + temporada/episódio pela meta do addon Anime Kitsu (corrige numeração absoluta). O Anime Kitsu também oferece legendas (redireciona ao OpenSubtitles v3): instalar **depois** do RightSubs. **Validado na TV** (Death Note pelo catálogo Kitsu: faixa do RightSubs, sincronizada).
-- **Fase 4 — referência embutida** (2026-10-29, 124 testes, instalada na box). Caso real: Halloween (1978) QTZ, sem referência no OpenSubtitles, com SRT fre/eng embutidas. Sem exato no OpenSubtitles → `src/sync/embedded-reference.ts` lê a faixa de texto embutida (`pickTextTrack`: texto, não forçada) em 3 trechos de 45 s nas partes com mais fala (`src/sync/windows.ts`), via `ffmpeg -copyts -ss … -to …` sem `-readrate` (com ele, 24× levou 21 s por janela), cache de poucos KB. **Decisões do usuário:** (1) o player fica com a primeira legenda até o fim → **esperar a extração terminar** (sem corte por `budgetSeconds`; só entrega sem ajuste se a extração falhar); (2) **ser conservador**: não ler o vídeo quando a legenda já é provavelmente certa — `likely_synced` = mesma origem (bluray/web/hdtv/dvd) e mesma resolução do arquivo (Halloween YTS→QTZ BluRay 2160p e Matlock WEB 1080p bateram). Janelas lidas **em paralelo** (4,6 s × 12,4 s sequencial; ~2 núcleos por ffmpeg, prioridade baixa). Preparo antecipado: o 2º pedido do Stremio (com hash) dispara `prepare(..., { warm: true })`. Halloween na box: extração 12,8 s, 37 falas, `already_synced` −0,1 s, conf. 0,96; player recebeu o .srt em 11,9 s. **Falta validar na TV** se o vídeo começa normalmente e o player espera (pergunta 4). Bug corrigido no caminho: fps do ffprobe por média (23,81) → usar `r_frame_rate` e só fps padrão (`standardRate`).
-- **Restante da fase 4 adiado** (decisão do usuário, 2026-10-29): sincronização por **áudio** (sem referência alguma), só com casos reais. ASS embutido (anime) já é lido: o ffmpeg converte para SRT. Teste com gabarito disponível: Valkyrie/Licdom = +25,5 s.
-- **Como saber se a fase 4 é necessária:** `/health` → `subtitles.served` (contagem por status de sincronização desde o start) e `subtitles.recentUnsynced` (últimos 10 com `no_reference`/`low_confidence`/`budget_exceeded`). Zera ao reiniciar; o histórico completo está no log da box (`grep subtitles.served ~/.rightsubs/logs/rightsubs.log*`).
-- Pendências, itens adiados e o que o guia para amigos precisa cobrir (multi-aparelho, contas próprias, dados pessoais ficam em `CLAUDE.local.md`, fora do git): [docs/PROXIMOS-PASSOS.md](docs/PROXIMOS-PASSOS.md).
-- Como a fase 1 funciona: `/subtitles` busca em todos os provedores, oferece **uma** faixa (principal, senão secundária) com URL `/sub/{type}/{id}/{lang}/{filename base64url}.srt` — igual nos dois pedidos do Stremio (sem e com hash; o hash é lembrado em memória). O download só ocorre quando o player pede o `.srt`: cópia do v3 (sem cota, via `sameAs` = `legacy_subtitle_id`) antes da API (cota 20/dia). Código em `src/subtitles/`.
-
-## Decisões já tomadas com o usuário (não reabrir)
-
-| Tema | Decisão |
+| Peça | Como |
 |---|---|
-| Nome | RightSubs (`right-subs`) |
-| Box | Chromecast com Google TV 4K (2 GB RAM, Android TV 14, **userland 32 bits confirmado**: `uname -m` = `armv8l`; box no cabo; IP em `CLAUDE.local.md`) |
-| Player | **EXO fixo** no Stremio (usuário prioriza 4K HDR/Dolby Vision/Atmos); MPV como troca manual. O addon funciona igual nos dois. |
-| Idiomas | Principal `pt-BR`, secundário `en-US` (vira `en`), configuráveis |
-| Fontes | API OpenSubtitles (conta **gratuita**) para busca + addon OpenSubtitles v3 (sem conta, sem cota) para download/fallback. Provedores plugáveis via config. |
-| Tradução | **Fora do escopo.** Documentada como futuro (DeepL Free). Fallback atual = idioma secundário sincronizado. |
-| Serviços | **Somente gratuitos** |
-| Onde roda | Na box, mesmo IP da TV (Real-Debrid restringe IPs). Nada em nuvem. |
-| Recursos | **Requisito forte do usuário:** consumir só quando o Stremio usa; ocioso deve ficar no piso. Ver plano §6.1. |
-| Indexadores | **Torrentio + Sootio** (ambos com RD) passam pelo proxy na fase 3; `streams.upstream` vira lista |
-| Cache | 50 MB, **10 dias** desde o último uso (usuário pediu explicitamente, reassistir é raro) |
+| Node.js | `nodejs-lts` **do Termux** (24.22.1 hoje, o mesmo validado na box), extraído dos `.deb` ([scripts/termux-node.mjs](scripts/termux-node.mjs)): SHA-256 conferido pelo índice, dependências por BFS de `NEEDED`. nodejs-mobile foi descartado (parado no Node 18; o RightSubs usa `util.parseEnv`). |
+| Bibliotecas | Android só extrai `lib*.so` do APK: `libssl.so.3` vira `libssl_so_3.so`; `assets/libmap.txt` guarda o mapa e o app cria symlinks com o nome real em `files/lib/` (sem patchelf). `LD_LIBRARY_PATH=files/lib:nativeLibraryDir`. |
+| Executáveis | Node e ffmpeg em `jniLibs` como `libnode.so`, `libffmpeg.so`, `libffprobe.so` (única pasta executável para targetSdk ≥ 29; `useLegacyPackaging = true`). `files/bin/{node,ffmpeg,ffprobe}` são symlinks; `PATH` aponta para lá, então o right-subs acha `ffmpeg` sem mudança. |
+| ffmpeg | 7.1.1 **mínimo**, compilado com o NDK ([scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh)): só demuxers/decoders/encoders de legenda em texto, http(s). TLS pelo OpenSSL do Termux. Patch [patches/ffmpeg-tls-verify.patch](patches/ffmpeg-tls-verify.patch): verifica certificado **e** hostname por padrão. Cache por hash em `build/cache/ffmpeg/`. |
+| RightSubs | **Cópia própria em `rightsubs/`** (desde 2026-11-01, a pedido do usuário: o APK não depende do repositório `../right-subs`, que evolui separado; não ler nem alterar o `../right-subs`). `git archive HEAD:rightsubs` → `npm ci --ignore-scripts`, build, `npm prune --omit=dev` → `assets/rightsubs.zip` ([scripts/build-payload.sh](scripts/build-payload.sh)). O app descompacta em `files/app/` a cada versão (proteção contra zip slip). |
+| Config | O app gera `files/config.yaml` a partir do `config.example.yaml` ([ConfigWriter.kt](android/app/src/main/java/com/rightsubs/android/ConfigWriter.kt)): host `127.0.0.1`, porta 7000, `realdebrid.enabled` = há token, `translation.deepl.enabled` = há chave do DeepL, `stremio.enabled` sempre, `languages.primary`/`secondary` e `sync.referenceLanguages` da tela ([Languages.kt](android/app/src/main/java/com/rightsubs/android/Languages.kt): preferências comuns, padrão pt-BR + pt-PT, referência `en`; secundária "Nenhuma" comenta a linha, referência "Nenhuma" grava `[]`. Assistidos × referência são coisas diferentes: sem o inglês na busca, as referências exatas somem — Enter the Void DC, 2026-11-01; `LanguagesTest` compara a lista com o `languages.ts` do right-subs). Mantém os `${VAR}`. Modo proxy (Torrentio/Sootio) **não** tem campos na tela. |
+| App | Kotlin **sem bibliotecas** (só stdlib; JUnit nos testes). Uma tela (D-pad; partes que dependem da largura em `include`s com duas versões: `layout/` celular em pé, `layout-w720dp/` TV — mesmos IDs; margens em `values(-w720dp)/dimens.xml`), `AddonService` em primeiro plano (`specialUse`) que supervisiona o Node como o `rightsubs.sh` (78 = config inválida, não reinicia; 75 = reinício limpo em 1 s; demais: backoff 5 s→60 s), `BootReceiver` (boot e atualização do app). |
+| Ícones | `art/icon-source.png` (1254×1254, do usuário: desenho roxo sem texto) → [scripts/make-icons.sh](scripts/make-icons.sh) (ImageMagick no container): `mipmap-*/ic_launcher_foreground.png` (adaptativo, arte na área segura de 66 dp sobre `icon_background` `#0F0620`; o degradê do fundo é uniformizado) e `drawable-xhdpi/banner.png` (320×180, TV: desenho + "RightSubs" em DejaVu Sans Bold, "Subs" lilás). Os PNGs gerados ficam no git; rodar o script de novo ao trocar a imagem. Notificação: `ic_notification.xml` (monocromático, não muda). |
+| Visual | **Estilo do Stremio** (pedido do usuário, 2026-11-04; escopo: só cores, fonte e componentes, a estrutura da tela não mudou). Valores do web app deles (`stremio-web/src/App/styles.less`): fundo `#0C0B11`, card `#1A173E`, modal `#0F0D20`, destaque roxo `#7B5BF5`, sucesso `#22B365`, aviso `#FFA500`, texto branco a 90%, sobreposição branco a 5%, raio 12 dp, foco = anel de 2 dp (na TV é o único indicador). Tokens e estilos em `values/themes.xml`: `Action`/`ActionCell`/`ActionBlock` (secundário) e `…Primary` (roxo: "Instalar no Stremio" e "Salvar"), `Field`, `Dropdown` (Spinner), `Check`, `Theme.RightSubs.Dialog` (lista de idiomas); drawables `bg_*` e `color/{button_text,check_tint}`. O erro usa `#F87171` (o `#DC2626` do Stremio dá < 4,5:1 sobre o fundo). **Fonte Plus Jakarta Sans** (SIL OFL; o mesmo `PlusJakartaSans.ttf` do stremio-web): fonte variável `res/font/plus_jakarta_sans.ttf` + família `stremio_font.xml` (pesos 400/500/700 por `fontVariationSettings`, vale por causa do minSdk 26), aplicada no tema, em `Action` e em `Field` (os estilos-pai dos widgets ignoram a do tema); `Mono` (URL e log) continua monoespaçado. Nenhum `.kt` mudou. |
+| Build | Tudo num container Docker ([docker/Dockerfile](docker/Dockerfile): Node 24, JDK 17, SDK 35, NDK r27c, Gradle 8.10.2, platform-tools). `build.ps1`/`build.sh` → [scripts/container-build.sh](scripts/container-build.sh). Splits por ABI + universal. |
+| Testes | `.\test.ps1` / `sh test.sh` → [scripts/container-test.sh](scripts/container-test.sh), **mesmo container**, sem gerar APK (~30 s): addon (`npm ci`, `tsc`, `npm test`; 231 testes em 2026-11-04) e app (`testReleaseUnitTest`; 36). Testam `rightsubs/` e `android/` como estão no disco, em cópias em `/tmp`; não leem o `.env`. `build.ps1` roda os testes do app em todo build e os do addon só com `-Test`. Passo a passo para quem chega: README › Testes e skill `testes`. |
 
-## Convenções do código
+## Segurança das credenciais (requisito do usuário)
 
-- TypeScript com **sintaxe apagável** (`erasableSyntaxOnly`): sem enums, namespaces ou parameter properties. Imports relativos com extensão `.ts`.
-- Dev: `npm run dev` executa o TS direto (Node ≥ 22.18). **Na box roda `dist/` compilado** (`npm run build`), porque executar TS direto custa ~20 MB a mais de RAM. O compilador é removido após o build (`npm prune --omit=dev`).
-- Dependências de runtime: só `yaml` e `zod` (v3). **Nada de módulos nativos** (Termux/ARM). Evitar dependências novas; se necessário, JS puro e pequeno.
-- HTTP com `node:http` + router próprio (`src/http/router.ts`), sem Express/SDK do Stremio.
-- Identificadores e comentários em **inglês**; mensagens ao usuário (erros de config, logs de orientação, docs) em **português**.
-- Erros de config: validação zod com mensagens em PT (`src/config/errors.ts`), objetos `.strict()` para pegar erros de digitação, segredos via `${VAR}` do `.env`.
-- Provedores: `ProviderType` em `src/providers/` registrado em `src/providers/index.ts`. Tipo `stremio-addon` = qualquer addon só por URL. Na fase 1, adicionar `create()` (implementação de `SubtitleProvider`).
-- Testes: `node:test` em `test/*.test.ts` (`npm test`). Todo comportamento novo com teste.
-- Logs: uma linha por evento, `<iso> <LEVEL> <evento> {json}` (`src/logger.ts`).
+- AES-256-GCM com chave do **Android Keystore** (StrongBox se houver), AAD = nome do campo ([SecretStore.kt](android/app/src/main/java/com/rightsubs/android/SecretStore.kt)). Chave perdida/inválida → apaga e pede de novo.
+- Segredos só como **variáveis de ambiente** do processo Node (ambiente limpo, `environment().clear()`); nunca em arquivo nem na linha de comando (`OPENSUBTITLES_*`, `RD_TOKEN`, `DEEPL_API_KEY`). Sem `.env` no aparelho. Os cinco campos (o RD e o DeepL opcionais) estão na tela e no formulário "Preencher pelo celular".
+- `allowBackup=false` + regras de extração vazias; `FLAG_SECURE`; campos `textPassword`, `flagNoPersonalizedLearning`, sem autofill, `saveEnabled=false`; valores salvos nunca reaparecem (campo em branco mantém).
+- Log: toda linha do Node passa pelo [Redactor](android/app/src/main/java/com/rightsubs/android/Redactor.kt) (valor bruto e codificado em URL → `***`).
+- Rede do app: cleartext só para `127.0.0.1`/`localhost`. Só a Activity principal é exportada.
+- **Única porta na rede local:** "Preencher pelo celular" ([PhoneSetupServer.kt](android/app/src/main/java/com/rightsubs/android/PhoneSetupServer.kt)) abre um formulário HTTP em `<IP da LAN>:7001` só enquanto a tela está aberta (fecha ao sair dela, após 1 envio aceito, 10 min ou 5 códigos errados). Código de 6 dígitos (`SecureRandom`, comparado em tempo constante) mostrado na TV e dentro do QR ([QrCode.kt](android/app/src/main/java/com/rightsubs/android/QrCode.kt), conferido com `zbarimg`); `Host` precisa ser o próprio IP:porta (contra DNS rebinding); CSP sem scripts, `no-store`; nenhum valor digitado volta na página nem vai ao log. **HTTP sem TLS dentro do Wi-Fi: risco aceito pelo usuário** (HTTPS exigiria certificado autoassinado e aviso do navegador).
+- `toString()` de `Credentials`/`CredentialsForm` esconde valores. Nunca logar segredos, URLs do Real-Debrid ou do Torrentio (têm chave).
 
-## Regras de recursos (valem para todo código novo)
+## Recursos SÓ DE TESTES
 
-- Qualquer tarefa pesada usa `resources.idle.beginJob()` e libera ao terminar; no máximo `resources.maxConcurrentJobs`.
-- Estruturas em memória registram liberação em `resources.onIdle(...)` e têm limite de itens/validade.
-- Nenhum `setInterval`/polling. Timers só armados por atividade, com `unref()`.
-- ffmpeg: `-threads 1`, timeout, matar o processo filho ao abortar/parar; áudio por HTTP range em **pipe**, sem arquivo temporário; vídeo nunca gravado em disco.
-- Temporários só em `resources.tmpDir` (esvaziado na inicialização/ocioso).
-- Cache em disco: atualizar `mtime` a cada uso (o janitor apaga por `mtime`).
+**Prefill:** `.\build.ps1 -Prefill` (ou `PREFILL=1 sh build.sh`) gera `*-prefill.apk`. [scripts/write-prefill.mjs](scripts/write-prefill.mjs) copia OpenSubtitles/RD/DeepL do `.env` para `assets/prefill.json` **em texto puro**; [Prefill.kt](android/app/src/main/java/com/rightsubs/android/Prefill.kt) grava no `SecretStore` uma única vez (flag em prefs separado: "Apagar credenciais" não traz de volta) e só se não houver credenciais salvas: **para aplicar numa box que já tem credenciais, `pm clear com.rightsubs.android` antes**. **Builds normais não leem o `.env`** (o asset só existe com `-Prefill`). Nunca distribuir um `-prefill.apk`; ele apaga os APKs de `out/` como os demais, então gere o normal de novo antes de distribuir. **`-WorkingTree`** (`WORKING_TREE=1`): o addon vem de `rightsubs/` **como está no disco** (inclusive arquivos novos, sem commitar nem mexer no stage), em vez do último commit. O fluxo de teste na box é `.\build.ps1 -WorkingTree -Prefill -DebugLog -Test` + `adb install -r` + `pm clear`.
 
-## Perguntas em aberto (fase 1 responde, registrar em docs/DESCOBERTAS.md)
+**Barreiras para as credenciais não irem adiante:** (1) todo build que não é `-Prefill` roda [scripts/check-no-secrets.sh](scripts/check-no-secrets.sh) e **apaga os APKs** se achar `prefill.json`, `.env`/`config.yaml` ou qualquer valor dos `.env` dentro deles; (2) hook de commit [scripts/git-hooks/pre-commit](scripts/git-hooks/pre-commit) (ativo com `git config core.hooksPath scripts/git-hooks`, já configurado aqui) bloqueia `.env`, `signing/`, `out/`, `build/`, APKs, `prefill.json`, `CLAUDE.local.md` e qualquer valor dos `.env` nos arquivos do git; (3) builds de teste (`-Prefill`, `-DebugLog`) deixam `out/NAO-DISTRIBUIR.txt`, avisam no fim do `build.ps1` e levam o sufixo no nome; (4) `.gitignore` com `*-prefill*.apk`, `*-debuglog*.apk`, `prefill.json`; (5) skills `release-check` e `new-version` exigem build sem opções de teste. Os scripts mostram só o **nome** da variável, nunca o valor.
 
-1. Código de idioma que o Stremio associa a "Português (Brasil)" — premissa `pob` (`src/languages/languages.ts`).
-2. EXO e MPV (Android TV) exibem a faixa externa do addon?
-3. Stremio prefere faixa embutida ou de addon no mesmo idioma?
-4. Quanto tempo o player espera pelo `.srt`?
-5. Stremio envia `videoHash` para streams HTTP do Real-Debrid?
-6. IDs do addon v3 casam com os da API OpenSubtitles (download sem cota)?
-7. Formato real da resposta do addon v3 (campos, metadados).
+Além disso, a **cópia do log legível por adb** em `/sdcard/Android/data/com.rightsubs.android/files/rightsubs.log`: `.\build.ps1 -DebugLog` (gera `*-debuglog.apk`; `BuildConfig.DEBUG_LOG_MIRROR`, `-PdebugLog=true`; `LogFile(mirror=…)` em `NodeRuntime.kt`). Linhas já passam pelo `Redactor`, mas mostram os filmes assistidos: nunca distribuir um `-debuglog.apk`. Checklist: skill `release-check`.
 
-## Ambiente
+## Versões
 
-- No computador de desenvolvimento original, o auto mode bloqueou subir o servidor em segundo plano e acessar a internet. Se acontecer de novo, peça ao usuário para liberar (`/permissions`) em vez de contornar.
-- Também foi bloqueado adicionar `sshd` ao script de boot (classificado como persistência). Não insistir; está documentado como passo manual opcional.
+Versão só no arquivo `VERSION` (semver): o build a injeta também no `package.json` do addon ([build-payload.sh](scripts/build-payload.sh)), então a linha de status do app, o manifesto do Stremio e o User-Agent mostram a mesma versão do APK; o build confere (APK = addon = `VERSION`) e a skill `new-version` mantém `rightsubs/package.json` igual; `CHANGELOG.md` com `[Não lançado]`; cada versão = commit "Versão X.Y.Z" + tag anotada `vX.Y.Z`. `versionCode` = minutos desde 1970 (sempre cresce; os primeiros builds já usavam isso, então trocar por um número menor impediria atualizar por cima). `out/BUILD-INFO.txt` registra versões, commit (`+alterações` = não corresponde a commit) e versões do Node/ffmpeg. Procedimento: skill `new-version`; passo a passo do usuário no README › Versões.
+
+## Box de testes
+
+- Xiaomi TV Box S 3ª geração (`MiTV_AFMU0`, "twilight"): Android 14, **userland 32 bits (armeabi-v7a)**, Wi-Fi 6. Sem Termux.
+- Acesso por **adb pela rede de dentro do container** (`scripts/adb.sh`, chave no volume Docker `rightsubs-adb`). Depuração por rede ligada a pedido do usuário; lembrar de desligar ao fim dos testes.
+- Instalar no Stremio: o Stremio troca **qualquer** `stremio://` por `https://` (até `stremio:///addons?addon=http…`; medido na Shield, Stremio 1.12.0), e o addon é `http`. Por isso o botão abre `web.stremio.com/#/addons?addon=…` no celular e, na TV (`UI_MODE_TYPE_TELEVISION`; o Google TV não tem navegador e abre um stub sem erro), só mostra onde digitar o endereço (Addons › Add addon). Copiar não ajuda: o teclado Gboard da TV não tem colar e segurar OK no campo só reabre o teclado (medido na Shield); colar só pelo teclado do app Google TV no celular.
+- NVIDIA Shield TV Pro (Android 11, arm64) também serve para testes.
+- Celular Redmi 5G (Android 16, a versão mais recente do Android): testes da tela em pé (`layout/`) e do botão Instalar no Stremio.
+- Fluxo de trabalho na box: skill `box`.
+- **Stremio da box (Android TV) × addon lento:** o Stremio desiste de um pedido em **10 s contados do 1º pedido ao addon** e, se o `.srt` não chegou, o **vídeo nem abre** (medido: resposta aos 12,8 s falhou, aos 5,9 s funcionou). Qualquer faixa que possa demorar responde antes com uma legenda provisória; hoje só a tradução pendente (3 s). O Stremio não tem pop-up para addons, e o campo `lang` da lista é o nome da faixa. [TRADUCAO-DEEPL.md](rightsubs/docs/TRADUCAO-DEEPL.md).
+
+## Estado atual (2026-11-04)
+
+**Versão 0.1.0 (primeira).** Tudo abaixo está feito e validado na TV; o que falta para lançar: commitar, gerar o build sem opções de teste (`.\build.ps1 -Test`), `release-check` e a tag `v0.1.0`.
+
+- **App:** uma tela (D-pad e celular em pé) com idiomas, credenciais (OpenSubtitles, Real-Debrid e DeepL opcionais) e formulário "Preencher pelo celular"; serviço em primeiro plano que supervisiona o Node; credenciais no Android Keystore. Visual no estilo do Stremio (cores, fonte Plus Jakarta Sans e componentes).
+- **Addon (`rightsubs/`, 231 testes passando):**
+  - busca em vários provedores, ranking e sincronização por referência (legenda exata do OpenSubtitles, faixa embutida em texto, ou release da mesma edição);
+  - se o vídeo já tem faixa embutida no idioma do usuário, só avisa no menu do Stremio (sem busca, download, sincronização nem DeepL);
+  - **tradução pelo DeepL** como último recurso, sempre conferida contra a faixa embutida (6 trechos); em filmes sem faixa embutida traduz se o fps da legenda for o do arquivo, com o aviso "tempo não confirmado"; séries não. Tradução da faixa embutida inteira: fora de escopo. Detalhes e pendências em [TRADUCAO-DEEPL.md](rightsubs/docs/TRADUCAO-DEEPL.md);
+  - limpeza de texto em toda legenda servida (`rightsubs/src/subtitles/clean.ts`);
+  - fonte `stremio` (`src/streams/stremio.ts`): torrent sem Real-Debrid achado no `/stats.json` do servidor local do Stremio (`127.0.0.1:11470`); só ffprobe (15 s), embutida desligada (`peerToPeer`). O `ConfigWriter` liga `streams.stremio` sempre;
+  - idioma de referência separado (`sync.referenceLanguages`, padrão `en`), faixa embutida preferida nesse idioma, prazo por trecho proporcional ao bitrate (`windowTimeoutMs`), `normalizeFilename` para links do RD codificados e edição (DC/Extended/…) no `isExact` e no `likely_synced`.
+- **Como o addon escolhe e sincroniza** (ordem das referências, status, edição, `same_edit`, fonte `stremio`): `rightsubs/CLAUDE.md`; para o usuário, README › "Como a legenda é escolhida e sincronizada". Ao mudar uma regra, atualizar os dois e `rightsubs/docs/` (`CONFIGURACAO.md` › `sync`, `DESCOBERTAS.md` com o caso real).
+- **Medições com arquivos pesados** (Drive OpenMatte 60 fps, 23,6 GB; detalhes em `rightsubs/docs/DESCOBERTAS.md`):
+  - o Real-Debrid entrega 113 Mbit/s no PC e 142–151 na box; paralelo não soma banda;
+  - o ffmpeg mínimo equivale ao completo: a lentidão não vem da build;
+  - ler um trecho com a faixa de legenda leva ~4× mais que só com o áudio (9,7 s × 41–44 s), por causa interna do ffmpeg **ainda não descoberta** (também no ffmpeg 5.1 do Debian); trechos com pouca fala demoram ainda mais;
+  - trechos menores não servem: com menos de ~44 falas o alinhamento erra;
+  - o EXO espera pelo menos 34 s pelo `.srt`, repetindo o pedido a cada ~10 s.
+- **Limitações conhecidas:**
+  - idioma secundário só entra quando não existe **nenhuma** legenda no principal: PT-BR fora de sincronia ou impossível de baixar **não** cai para PT-PT (`useSecondaryWhen: low_confidence` é aceito mas não aplicado; mudar é decisão do usuário; ver `rightsubs/docs/`);
+  - sem nenhuma referência em texto, a legenda sai `no_reference` mesmo com fps declarado errado ou edição com outro nome; só a sincronização pelo áudio resolveria (aceito pelo usuário);
+  - a conferência do tempo da tradução só existe com Real-Debrid (torrent do Stremio e outros debrids: comportamento reduzido, não testado);
+  - no celular, o player VLC do Stremio desenha legendas externas sem espaços e com acentos deslocados (todos os addons; defeito do VLC): usar o ExoPlayer.
+- **Pendências:** o botão primário **focado** usa `accent_focused` `#9580F7` com texto branco, pouco legível na TV (o usuário ainda não aprovou a correção: fundo em `accent` `#7B5BF5` e só o anel branco); o `layout/` do celular só foi exercitado na box (`wm size 1080x2340`), sem teste em celular de verdade nesta versão; na foto da TV as cores saíram azuladas, não conferido contra o Stremio na mesma TV.
+- **Próximos passos possíveis** (decisão do usuário): testar a entrada "em preparo" no menu de legendas, remover `<font color>` também das legendas sem tradução, medir arquivos pesados com os 6 trechos, investigar por que a faixa de legenda deixa a leitura 4× mais lenta, remover os recursos de debug e o botão "Copiar endereço" (sugerido, não pedido).
+
+## Como trabalhar com este usuário
+
+- Diagnosticar com medição antes de propor; **apresentar resultados e perguntar antes de aplicar correções** (pedido explícito). Quando uma hipótese cai, dizer.
+- Mudanças em sincronização/ranking são em **`rightsubs/`** e seguem as regras de `rightsubs/CLAUDE.md` (testes, `DESCOBERTAS.md`, repetir casos reais: Drive, Halloween, Valkyrie).
+- Commit só quando pedido. Antes de qualquer commit: nenhum `.env`, `signing/`, `out/`, `build/`, `CLAUDE.local.md` no stage.
+- Segredos: nunca imprimir valores (`.env`, tokens, links do RD); em comandos, passar por variável e mascarar a saída (`sed` sobre `download.real-debrid`).
+
+## Armadilhas já encontradas
+
+- PowerShell 5.1: `$ErrorActionPreference='Stop'` + stderr de `docker`/`git` = erro falso; os `.ps1` precisam de BOM UTF-8 (acentos) e checam `$LASTEXITCODE`.
+- Git Bash + Docker: use caminhos `D:/…` e `MSYS_NO_PATHCONV=1`; `git -C x archive -o` é relativo a `x` (use caminho absoluto).
+- Scripts que vão para a box: escreva num arquivo, remova `\r` e envie com `adb push` (aspas aninhadas em `adb shell "…"` quebram); `pkill -f padrão` mata o próprio shell.
+- Node do Termux usa o repositório de CAs do OpenSSL: sem `SSL_CERT_FILE` dá `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` (o app define).
+- `real-debrid.com/d/…` é página HTML; o ffmpeg precisa do link direto `*.download.real-debrid.com/d/…`. Links do RD valem para o IP da casa (PC e box saem pelo mesmo).
+- Auto mode bloqueia baixar binários de terceiros (ex.: builds do ffmpeg no GitHub); use pacotes do Debian (`apt`) no container.
+- **A tela do app é `FLAG_SECURE`**: `screencap` do adb não serve para ver o visual. Conferir pelo `logcat` (erros de recurso/inflate: filtrar `AndroidRuntime|FATAL EXCEPTION|InflateException`; `NotFoundException` casa com ruído do Play Store) e por foto da TV do usuário. Para exercitar o `layout/` do celular na box: `wm size 1080x2340; wm density 420` e depois **`wm size reset; wm density reset`** (a TV reaplica sozinha o 1920×1080 dela).
+- **Foco inicial no D-pad:** sem pedido, o Android escolhe o primeiro item focável, que era `manifest_url` (`textIsSelectable` o torna focável). O foco de abertura vem de `<requestFocus />` no botão `install_stremio` dos dois `main_actions.xml`; `showForm()`/`hideForm()` pedem foco por código.
+- Na TV (3 seletores lado a lado) o rótulo "Secundária (quando não houver a principal)" quebra em 2 linhas: os 3 rótulos têm `minLines="2"` + `gravity="bottom"` em `layout-w720dp/languages.xml` para os seletores ficarem alinhados. Texto novo mais comprido nesses rótulos pede o mesmo cuidado.
+- Estilos-pai dos widgets (`Widget.DeviceDefault.*`) definem a própria `fontFamily`, `background` e animador de estado: por isso `Action`/`Field` repetem a fonte e `Action` zera `stateListAnimator`. Tirar o fundo padrão do botão tira também o espaçamento vertical dele (daí `layout_marginBottom` 8 dp em `Action`).

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RightSubs</string>
+
+    <string name="status_stopped">Parado</string>
+    <string name="status_starting">Iniciando…</string>
+    <string name="status_running">Rodando</string>
+    <string name="status_restarting">Reiniciando…</string>
+    <string name="status_config_error">Configuração inválida — confira as credenciais</string>
+    <string name="status_failed">Não foi possível iniciar</string>
+    <string name="status_needs_setup">Informe as credenciais para começar.</string>
+    <string name="health_ok">Versão %1$s · Node %2$s · ffmpeg: %3$s · %4$s</string>
+    <string name="yes">sim</string>
+    <string name="no">não</string>
+    <string name="mode_light">modo leve</string>
+    <string name="mode_realdebrid">com Real-Debrid</string>
+
+    <string name="manifest_label">Endereço do addon (só este aparelho acessa):</string>
+    <string name="install_stremio">Instalar no Stremio</string>
+    <string name="edit_credentials">Credenciais</string>
+    <string name="restart">Reiniciar</string>
+    <string name="show_log">Log</string>
+    <string name="first_time_note">Primeira vez de um vídeo sem legenda em português: o RightSubs lê um pouco do vídeo e traduz com o DeepL, o que leva de 20 a 60 s. Como o Stremio desiste em 10 s, o vídeo abre com uma legenda provisória que avisa: saia do vídeo e abra de novo depois de cerca de 30 s e a legenda traduzida aparece. Da segunda vez em diante é instantâneo.</string>
+    <string name="how_to">Instale o addon pelo botão acima: no celular ele abre o Stremio Web no navegador; na TV, abra Addons › Add addon no Stremio e digite o endereço. Depois desinstale o OpenSubtitles v3 para que o RightSubs seja a única fonte de legendas. O serviço inicia sozinho quando o aparelho liga.</string>
+    <string name="install_tv">No Stremio, abra Addons › Add addon e digite %1$s (dica: o teclado do app Google TV no celular aceita colar)</string>
+    <string name="install_manually">Endereço copiado. No Stremio, abra Addons › Add addon e cole: %1$s</string>
+    <string name="manifest_clip_label">Endereço do RightSubs</string>
+    <string name="log_empty">(log vazio)</string>
+
+    <string name="languages_title">Idiomas da legenda</string>
+    <string name="language_primary">Principal</string>
+    <string name="language_secondary">Secundária (quando não houver a principal)</string>
+    <string name="language_reference">Referência para sincronizar</string>
+    <string name="language_none">Nenhuma</string>
+    <string name="languages_hint">Principal e secundária são as legendas que você assiste: para o Stremio escolher a do RightSubs sozinho, o idioma de legenda do Stremio deve ser o mesmo da principal. A referência nunca aparece na tela: só ajuda a acertar o tempo (a maioria das legendas feitas para cada arquivo está em inglês).</string>
+    <string name="languages_same">A secundária precisa ser diferente da principal</string>
+    <string name="languages_saved">Idiomas salvos: %1$s (referência: %2$s)</string>
+
+    <string name="form_intro">OpenSubtitles: crie uma conta gratuita em opensubtitles.com. A API key fica em perfil › API consumers › New consumer (marque “Allow anonymous downloads”).</string>
+    <string name="form_security">Os dados ficam só neste aparelho, criptografados com uma chave do Android Keystore que não sai dele, e são enviados apenas à OpenSubtitles e ao Real-Debrid. Não ficam visíveis depois de salvos. Dica: para digitar no celular, use o teclado do app Google TV.</string>
+    <string name="hint_api_key">API key da OpenSubtitles</string>
+    <string name="hint_user">Nome de usuário da OpenSubtitles (não o e-mail)</string>
+    <string name="hint_password">Senha da OpenSubtitles</string>
+    <string name="rd_intro">Real-Debrid (opcional): com o token, o RightSubs acha o vídeo que está tocando e sincroniza até sem legenda exata. Token em real-debrid.com/apitoken.</string>
+    <string name="hint_rd_token">Token do Real-Debrid (opcional)</string>
+    <string name="hint_keep"> — em branco mantém o atual</string>
+    <string name="remove_rd">Remover o token do Real-Debrid</string>
+    <string name="deepl_intro">DeepL (opcional, último recurso): traduz para português uma legenda em inglês quando não existe nenhuma em português. Chave gratuita em deepl.com, em Conta › Chaves de API (termina em “:fx”).</string>
+    <string name="hint_deepl_key">Chave do DeepL (opcional)</string>
+    <string name="remove_deepl">Remover a chave do DeepL</string>
+    <string name="show_values">Mostrar o que estou digitando</string>
+    <string name="save">Salvar e iniciar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="clear">Apagar credenciais</string>
+    <string name="saved">Credenciais salvas</string>
+
+    <string name="phone_setup">Preencher pelo celular</string>
+    <string name="phone_intro">No celular, conectado à mesma rede Wi-Fi desta TV, aponte a câmera para o código QR ou abra o endereço abaixo no navegador.</string>
+    <string name="phone_code">Código: %1$s</string>
+    <string name="phone_note">O formulário fica aberto por 10 minutos e fecha depois de um envio. Os dados vão pela sua rede Wi-Fi (protegidos só pela senha do Wi-Fi) e ficam guardados apenas nesta TV.</string>
+    <string name="phone_cancel">Voltar</string>
+    <string name="phone_qr_description">Código QR com o endereço do formulário</string>
+    <string name="phone_no_network">Esta TV não está conectada a uma rede local (Wi-Fi ou cabo).</string>
+    <string name="phone_expired">O formulário pelo celular expirou. Gere outro.</string>
+    <string name="phone_attempts">Código errado vezes demais. Gere outro formulário.</string>
+    <string name="cleared">Credenciais apagadas deste aparelho</string>
+
+    <string name="notification_channel">Serviço do addon</string>
+    <string name="notification_text">Addon ativo em %1$s:%2$d</string>
+</resources>

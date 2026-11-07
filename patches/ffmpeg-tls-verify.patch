@@ -1,0 +1,39 @@
+--- a/libavformat/tls.h
++++ b/libavformat/tls.h
+@@ -46,7 +46,7 @@
+ #define TLS_COMMON_OPTIONS(pstruct, options_field) \
+     {"ca_file",    "Certificate Authority database file", offsetof(pstruct, options_field . ca_file),   AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
+     {"cafile",     "Certificate Authority database file", offsetof(pstruct, options_field . ca_file),   AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
+-    {"tls_verify", "Verify the peer certificate",         offsetof(pstruct, options_field . verify),    AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, .flags = TLS_OPTFL }, \
++    {"tls_verify", "Verify the peer certificate",         offsetof(pstruct, options_field . verify),    AV_OPT_TYPE_INT, { .i64 = 1 }, 0, 1, .flags = TLS_OPTFL }, \
+     {"cert_file",  "Certificate file",                    offsetof(pstruct, options_field . cert_file), AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
+     {"key_file",   "Private key file",                    offsetof(pstruct, options_field . key_file),  AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
+     {"listen",     "Listen for incoming connections",     offsetof(pstruct, options_field . listen),    AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, .flags = TLS_OPTFL }, \
+--- a/libavformat/tls_openssl.c
++++ b/libavformat/tls_openssl.c
+@@ -279,6 +279,8 @@
+     if (c->ca_file) {
+         if (!SSL_CTX_load_verify_locations(p->ctx, c->ca_file, NULL))
+             av_log(h, AV_LOG_ERROR, "SSL_CTX_load_verify_locations %s\n", ERR_error_string(ERR_get_error(), NULL));
++    } else if (c->verify && !SSL_CTX_set_default_verify_paths(p->ctx)) {
++        av_log(h, AV_LOG_ERROR, "SSL_CTX_set_default_verify_paths %s\n", ERR_error_string(ERR_get_error(), NULL));
+     }
+     if (c->cert_file && !SSL_CTX_use_certificate_chain_file(p->ctx, c->cert_file)) {
+         av_log(h, AV_LOG_ERROR, "Unable to load cert file %s: %s\n",
+@@ -319,6 +321,16 @@
+     SSL_set_bio(p->ssl, bio, bio);
+     if (!c->listen && !c->numerichost)
+         SSL_set_tlsext_host_name(p->ssl, c->host);
++    // RightSubs: also check that the certificate matches the host (see the note above).
++    if (c->verify && !c->listen) {
++        X509_VERIFY_PARAM *param = SSL_get0_param(p->ssl);
++        if (!(c->numerichost ? X509_VERIFY_PARAM_set1_ip_asc(param, c->host)
++                             : X509_VERIFY_PARAM_set1_host(param, c->host, 0))) {
++            av_log(h, AV_LOG_ERROR, "Unable to set the host to verify\n");
++            ret = AVERROR(EIO);
++            goto fail;
++        }
++    }
+     ret = c->listen ? SSL_accept(p->ssl) : SSL_connect(p->ssl);
+     if (ret == 0) {
+         av_log(h, AV_LOG_ERROR, "Unable to negotiate TLS/SSL session\n");

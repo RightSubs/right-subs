@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wide screens (TV): the form buttons in one row. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:orientation="horizontal">
+
+    <Button
+        android:id="@+id/save"
+        style="@style/ActionPrimary"
+        android:filterTouchesWhenObscured="true"
+        android:text="@string/save" />
+
+    <Button
+        android:id="@+id/cancel"
+        style="@style/Action"
+        android:text="@string/cancel" />
+
+    <Button
+        android:id="@+id/clear"
+        style="@style/Action"
+        android:filterTouchesWhenObscured="true"
+        android:text="@string/clear" />
+</LinearLayout>

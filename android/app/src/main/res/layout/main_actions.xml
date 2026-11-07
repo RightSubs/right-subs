@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone in portrait: the four actions in a 2×2 grid. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/install_stremio"
+            style="@style/ActionCellPrimary"
+            android:text="@string/install_stremio">
+
+            <requestFocus />
+        </Button>
+
+        <Button
+            android:id="@+id/edit_credentials"
+            style="@style/ActionCell"
+            android:layout_marginEnd="0dp"
+            android:text="@string/edit_credentials" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/restart"
+            style="@style/ActionCell"
+            android:text="@string/restart" />
+
+        <Button
+            android:id="@+id/show_log"
+            style="@style/ActionCell"
+            android:layout_marginEnd="0dp"
+            android:text="@string/show_log" />
+    </LinearLayout>
+</merge>

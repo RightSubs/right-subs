@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Blocks a commit that would put credentials (values of the .env files), signing keys, APKs or
+# local files into git. Enabled with:  git config core.hooksPath scripts/git-hooks
+# Bypass (not recommended): git commit --no-verify
+exec bash "$(git rev-parse --show-toplevel)/scripts/check-no-secrets.sh" staged

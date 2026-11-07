@@ -1,0 +1,60 @@
+# RightSubs (addon) — contexto para o Claude
+
+Addon do Stremio em Node.js que entrega **uma** legenda já escolhida e **sincronizada** no idioma principal (padrão pt-BR) ou, sem nenhuma no principal, no secundário (padrão pt-PT). Objetivo do usuário: escolher qualquer arquivo, dar play e assistir — sem escolher player, legenda ou ajustar delay.
+
+**Onde roda:** dentro do APK deste repositório (Android TV/Google TV e celular). Box, build, instalação, credenciais e o fluxo de trabalho na box: `CLAUDE.md` da raiz e skills `box`/`build-apk`. **Não há Termux nem ssh**; o app gera o `config.yaml` (`ConfigWriter.kt`) e supervisiona o Node (`AddonService.kt`: código 78 = config inválida, não reinicia; 75 = reinício limpo). Esta pasta é uma cópia própria do projeto `right-subs` (2026-11-01) e evolui aqui; não ler nem alterar o `../right-subs`.
+
+Documentos: [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md) (todas as opções), [docs/DESCOBERTAS.md](docs/DESCOBERTAS.md) (medições e **casos de teste reais**), [docs/PROXIMOS-PASSOS.md](docs/PROXIMOS-PASSOS.md) (pendências e adiados), [docs/PLANO-DESENVOLVIMENTO.md](docs/PLANO-DESENVOLVIMENTO.md) (arquitetura original, histórico).
+
+## Como a legenda é escolhida (estado em 2026-11-04, 231 testes)
+
+- **0. Faixa embutida no idioma do usuário (vem antes de tudo)** (`SubtitleService.embeddedLanguage`, `embeddedLabel`/`embeddedNoticeSrt` em `src/stremio/status.ts`, `handleSubtitles` em `src/app.ts`; decisão do usuário em 2026-11-04, **sempre**, não só antes do DeepL): ao listar as legendas, o addon localiza e sonda o arquivo (`ffprobe`, cabeçalho, ~1–1,5 s). Se há uma faixa **não forçada, de qualquer codec** (texto ou imagem) no principal e, depois, no secundário, o fluxo **termina aí**: sem busca, download, sincronização, DeepL nem leitura do vídeo; responde só a entrada `rightsubs-embedded`, cujo nome (`lang`) é o aviso "o vídeo já tem legenda embutida no seu idioma, escolha-a no menu" (não é código de idioma, para o Stremio não escolhê-la no lugar da faixa do arquivo); se escolhida, mostra o aviso por 20 s. Não depende de `sync.embedded.enabled` (só do `ffprobe` e de localizar o arquivo). Sem sondagem (arquivo não localizado, rede fora) segue o fluxo normal. Extrair a faixa foi descartado: em MKV as falas ficam espalhadas, ler tudo = o arquivo inteiro. **Medido na box** (Chef's Kiss NoRBiT, Creature Commandos S01E03): o Stremio lista a faixa do arquivo e não escolhe o aviso; o aviso em si não aparece no menu da esquerda nem na tela (decisão do usuário: manter assim). Faixas só em outros idiomas (Narco Mennonites: EN e FR) não disparam o aviso.
+- **Busca** (`src/subtitles/`): todos os provedores em paralelo, idiomas = principal + secundário + `sync.referenceLanguages` (padrão `[en]`: só referência, nunca entregues). Oferece **uma** faixa, URL `/sub/{type}/{id}/{lang}/{filename base64url}.srt`, igual nos dois pedidos do Stremio (o 2º traz o hash). Download só quando o player pede: cópia do v3 (sem cota, `sameAs` = `legacy_subtitle_id`) antes da API (20/dia). `normalizeFilename` (`src/stremio/request.ts`): o Stremio às vezes manda o link do RD (cru ou codificado) ou `realdebrid:ID:1` como `filename` — usa só o nome do arquivo e nunca loga o link.
+- **Ranking** (`src/subtitles/rank.ts`): exato > grupo (+80) > origem bluray/web/hdtv/dvd (±) > resolução; fps inferido das exatas (±30); SDH −10; gratuito ou em cache +15. `isExact` = hash, ou nome de release ≥ 5 tokens contido no nome do arquivo **e mesma edição** (DC/Director's Cut, Extended, Uncut, Unrated, Theatrical, IMAX). Sem confiança na sincronização, tenta o próximo candidato **gratuito**.
+- **Sincronização** (`src/subtitles/service.ts`, `src/sync/`), para no primeiro que se aplica:
+  1. referência **exata** do OpenSubtitles (qualquer idioma buscado; gratuita primeiro) → `align.ts`: votação de offsets entre inícios de falas + 7 razões de fps, score = sobreposição de fala e falas que começam juntas (±0,5 s; Drive); aplica se confiança ≥ `minConfidence` e ganho ≥ 0,1 (ou ≥ 0,25 nas falas que começam juntas);
+  2. `likely_synced`: mesma edição, origem e resolução do arquivo → não lê o vídeo (decisão do usuário: ser conservador);
+  3. **embutida** (`embedded-reference.ts`): faixa de texto não forçada, preferindo os idiomas de referência (`pickTextTrack`), 3 trechos de 45 s nas partes com mais fala, lidos em paralelo com `ffmpeg -copyts -ss … -to …`; prazo por trecho proporcional ao bitrate (`windowTimeoutMs`, 15 s a 2 min; Drive ~85 s). O player espera a extração (decisão do usuário). Desligada para arquivos `peerToPeer`;
+  4. `same_edit`: release da mesma edição, origem e resolução (outro grupo), qualquer idioma;
+  5. `fps_corrected`: só fps, pelo fps real (ffprobe, `r_frame_rate`, só fps padrão); reescala no máximo 5% (nunca 23,976 → 59,94 em vídeo interpolado).
+  Status no log `subtitles.served`: `exact`, `synced`, `already_synced`, `likely_synced`, `fps_corrected`, `no_reference`, `low_confidence`, `budget_exceeded`, `disabled`.
+- **Arquivo tocando** (`src/streams/locator.ts`), cadeia proxy (indexadores) → API do RD (`/downloads`, link aparece no 2º pedido) → servidor local do Stremio (`src/streams/stremio.ts`, `127.0.0.1:11470/stats.json`, por nome e tamanho; torrent sem RD, `peerToPeer`: ffprobe com 15 s, sem embutida). O APK usa o modo complemento (sem indexadores).
+- **Tradução (último recurso)** (`#translate`, `src/sync/consistency.ts`, `src/translation/`, `src/stremio/status.ts`): sem PT nem secundário, traduz com o DeepL a melhor legenda de **qualquer idioma** cujo tempo a faixa embutida confirma em 6 trechos (as duas metades concordam); recusa legendas de outro corte (degraus). Provisória em 3 s enquanto traduz (limite de 10 s do Stremio). Regras, constantes medidas e logs: [docs/TRADUCAO-DEEPL.md](docs/TRADUCAO-DEEPL.md).
+- **Limpeza do texto (sempre, no fim)** (`src/subtitles/clean.ts`, aplicada em `prepare`): qualquer legenda servida (online, traduzida) perde notas musicais (♪ ♫ ♬ ♩ ♭ ♯) e também a forma corrompida delas (`â™ª`: UTF-8 lido como Windows-1252, vinha da legenda em inglês de origem e o DeepL preservou; Chef's Kiss RGB), o caractere de substituição, caracteres de controle/invisíveis, `#` usado como marca de música (`#1` e `#hashtag` ficam) e restos de ASS (`{\an8}`, `\N`, `\h`); falas que ficam vazias somem. `<i>` e `<font>` ficam (o player os desenha). Legenda já limpa sai idêntica, byte a byte.
+- **Limitações aceitas/abertas:** sem nenhuma referência em texto sai `no_reference`, mesmo com fps declarado errado ou edição com outro nome (Enter the Void r00t "Extended") — caso para a sincronização pelo **áudio** (adiada). O secundário só entra quando **não existe nenhuma** legenda no principal (`useSecondaryWhen: low_confidence` aceito, não aplicado; decisão do usuário).
+- **Casos reais** (Valkyrie Licdom +25,5 s, Halloween QTZ/Tigole, Drive OpenMatte −12,82 s, Enter the Void DC ×0,95904, White Ribbon, Death Note, Matlock, Generation Z S01E01 para a tradução: DE aceita com +6,0 s, EN/ES recusadas): tabela em [DESCOBERTAS.md](docs/DESCOBERTAS.md#casos-de-teste-reais-gabaritos). **Ao mexer em sincronização ou ranking, repetir os casos afetados** e registrar o resultado lá.
+
+## Decisões já tomadas com o usuário (não reabrir)
+
+| Tema | Decisão |
+|---|---|
+| Player | **EXO** no Stremio (4K HDR/Dolby Vision/Atmos). No celular, o VLC do Stremio desenha mal legendas externas (defeito dele): usar o ExoPlayer. |
+| Idiomas | Configuráveis na tela do APK: principal pt-BR, secundário pt-PT, referência `en`. Assistidos × referência são coisas diferentes. |
+| Fontes | API OpenSubtitles (conta **gratuita**) para busca + addon OpenSubtitles v3 (sem conta, sem cota) para download. Provedores plugáveis via config. |
+| Tradução | **Último recurso, DeepL Free** (2026-11-03, feita e validada na box): só sem legenda no principal nem no secundário. A fonte pode estar em **qualquer idioma** (a busca cobre todos quando há tradutor): até **8** candidatas de timing distinto, as gratuitas (v3) primeiro e as da API só se nenhuma servir; a exata que confere vence na hora. Cada uma é conferida com a faixa embutida (**6 trechos** de 45 s, nunca o vídeo todo) e só vale se **um deslocamento e escala servem no filme todo** (`checkConsistency`: 1ª × 2ª metade). Vence a de maior confiança; empate (≤ 0,02) = inglês, depois as demais. `likely_synced` **não** basta. Sem faixa embutida para conferir: só exata (como está) ou sincronizada por outra legenda; **só em filmes**, e só se nada mais serviu, traduz a melhor candidata de **mesmo fps** com o aviso "tempo não confirmado" (decisão do usuário; séries não). **Fora de escopo, por decisão do usuário:** traduzir a faixa embutida inteira (exige ler o filme todo). A traduzida leva aviso de IA e perde as tags `<font>` (vale o estilo do Stremio). **Primeira vez:** o Stremio desiste em 10 s (contados do 1º pedido ao addon; na box o vídeo nem abre), então, se a tradução não está pronta em 3 s, a faixa responde uma legenda provisória "abra de novo em ~30 s" e a tradução termina em segundo plano. A conferência do tempo **só existe com Real-Debrid** (torrent do Stremio e outros debrids: ver a tabela em TRADUCAO-DEEPL.md; sem Real-Debrid, não testado). Chave em `DEEPL_API_KEY`; `translation.deepl.forceFrom` é só teste. Tudo em [docs/TRADUCAO-DEEPL.md](docs/TRADUCAO-DEEPL.md). |
+| Serviços | **Somente gratuitos** (além do RD de cada um, opcional). |
+| Onde roda | No aparelho do Stremio (o RD restringe IPs). Nada em nuvem. |
+| Recursos | **Requisito forte:** consumir só quando o Stremio usa; ocioso no piso (plano §6.1). Medido na box: Node ~40 MB, app ~35 MB. |
+| Golden set | Não há (uso pessoal): título dessincronizado → o usuário traz para análise (log + medição). |
+| Cache | 50 MB, **10 dias** desde o último uso. |
+
+## Convenções do código
+
+- TypeScript com **sintaxe apagável** (`erasableSyntaxOnly`): sem enums, namespaces ou parameter properties. Imports relativos com extensão `.ts`.
+- `npm run dev` executa o TS direto (Node ≥ 22.18); no aparelho roda `dist/` compilado (`npm run build`; TS direto custaria ~20 MB a mais). O build do APK faz `npm ci --ignore-scripts`, build e `npm prune --omit=dev`.
+- Dependências de runtime: só `yaml` e `zod` (v3). **Nada de módulos nativos** (Node do Termux no Android). Evitar dependências novas; se necessário, JS puro e pequeno.
+- HTTP com `node:http` + router próprio (`src/http/router.ts`), sem Express/SDK do Stremio.
+- Identificadores e comentários em **inglês**; mensagens ao usuário (erros de config, logs de orientação, docs) em **português**.
+- Config: zod com mensagens em PT (`src/config/errors.ts`), objetos `.strict()`, segredos via `${VAR}` (no APK, variáveis de ambiente do processo; nunca arquivo). O APK depende do formato do `config.example.yaml` (`ConfigWriterTest`) e da lista de `src/languages/languages.ts` (`LanguagesTest`): ao mudar um deles, rodar os testes do app.
+- Provedores: `ProviderType` em `src/providers/`, registrado em `src/providers/index.ts`; `stremio-addon` = qualquer addon por URL ([NOVO-PROVEDOR.md](docs/NOVO-PROVEDOR.md)).
+- Testes: `node:test` em `test/*.test.ts` (`npm test`). Todo comportamento novo com teste.
+- Logs: uma linha por evento, `<iso> <LEVEL> <evento> {json}` (`src/logger.ts`). Nunca logar segredos, links do RD ou URLs de indexadores (têm a chave).
+
+## Regras de recursos (valem para todo código novo)
+
+- Tarefa pesada usa `resources.idle.beginJob()` e libera ao terminar; no máximo `resources.maxConcurrentJobs`.
+- Estruturas em memória registram liberação em `resources.onIdle(...)` e têm limite de itens/validade.
+- Nenhum `setInterval`/polling. Timers só armados por atividade, com `unref()`.
+- ffmpeg: `-threads 1`, timeout, matar o processo filho ao abortar/parar; áudio por HTTP range em **pipe**, sem arquivo temporário; vídeo nunca gravado em disco.
+- Temporários só em `resources.tmpDir` (esvaziado na inicialização/ocioso).
+- Cache em disco: atualizar `mtime` a cada uso (o janitor apaga por `mtime`).
