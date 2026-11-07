@@ -1,15 +1,18 @@
 import type { AppConfig } from '../config/load.ts';
+import { fill, messagesFor } from '../i18n/messages.ts';
 
 export const ADDON_ID = 'community.rightsubs';
 
 export function buildManifest(config: AppConfig, version: string) {
   const { primary, secondary } = config.languages;
-  const languages = secondary ? `${primary.name} (secundária: ${secondary.name})` : primary.name;
+  // In the primary language: it is what the viewer reads in Stremio's addon list.
+  const messages = messagesFor(primary);
+  const languages = secondary ? fill(messages.manifestLanguages, { primary: primary.name, secondary: secondary.name }) : primary.name;
   return {
     id: ADDON_ID,
     version,
     name: 'RightSubs',
-    description: `Legenda certa, sincronizada automaticamente — ${languages}.`,
+    description: fill(messages.manifestDescription, { languages }),
     resources: [
       // Anime catalogs (Anime Kitsu addon) use Kitsu ids; they are mapped to IMDb.
       { name: 'subtitles', types: ['movie', 'series'], idPrefixes: ['tt', 'kitsu'] },

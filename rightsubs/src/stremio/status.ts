@@ -1,3 +1,4 @@
+import { messagesFor } from '../i18n/messages.ts';
 import type { Language } from '../languages/languages.ts';
 import { serializeSrt, type Cue } from '../subtitles/srt.ts';
 import { trackPath } from './track.ts';
@@ -6,11 +7,14 @@ import type { SubtitlesRequest } from './request.ts';
 /**
  * A second, informative entry in Stremio's subtitle list while a translated subtitle is
  * still being prepared (the first time an episode needs the DeepL, the .srt takes longer
- * than the 10 s Stremio waits, and all it shows is "10000 ms sem responder").
+ * than the 10 s Stremio waits, and all it shows is a timeout error).
  *
  * Stremio has no way for an addon to show a message, so this is a subtitle track whose
  * name says what is going on and whose text says it again on screen. Its content is
  * decided when it is requested, so it never says "preparing" about a subtitle that is ready.
+ *
+ * The texts are in the viewer's primary language (`src/i18n/messages.ts`): the `language`
+ * of the functions below is the language to write in, not the language of the subtitle.
  */
 
 /** The status track lives next to the real one: `/status/…` instead of `/sub/…`. */
@@ -18,22 +22,14 @@ export function statusPath(request: SubtitlesRequest, language: Language): strin
   return trackPath(request, language).replace(/^\/sub\//, '/status/');
 }
 
-const portuguese = (language: Language) => language.tag.startsWith('pt-');
-
 /** What Stremio lists the entry as (it shows the `lang` field as the track's name). */
 export function statusLabel(language: Language): string {
-  return portuguese(language) ? 'RightSubs: legenda em preparo, aguarde 30 s' : 'RightSubs: preparing subtitle, wait 30 s';
+  return messagesFor(language).statusLabel;
 }
 
 function statusText(language: Language, pending: boolean): string {
-  if (portuguese(language)) {
-    return pending
-      ? '[RightSubs] Preparando a legenda traduzida (primeira vez deste vídeo).\nAguarde cerca de 30 s. Se ela não aparecer, saia e abra o vídeo de novo.'
-      : '[RightSubs] A legenda traduzida já está pronta.\nEscolha-a no menu de legendas ou saia e abra o vídeo de novo.';
-  }
-  return pending
-    ? '[RightSubs] Preparing the translated subtitle (first time for this video).\nWait about 30 s. If it does not show up, leave and open the video again.'
-    : '[RightSubs] The translated subtitle is ready.\nPick it in the subtitle menu or leave and open the video again.';
+  const messages = messagesFor(language);
+  return pending ? messages.statusPending : messages.statusReady;
 }
 
 /**
@@ -43,10 +39,7 @@ function statusText(language: Language, pending: boolean): string {
  * in the background: opening the video again a little later gets it from the cache.
  */
 export function placeholderSrt(language: Language): Buffer {
-  const text = portuguese(language)
-    ? '[RightSubs] Preparando a legenda traduzida (primeira vez deste vídeo).\nSaia do vídeo e abra de novo em cerca de 30 s.'
-    : '[RightSubs] Preparing the translated subtitle (first time for this video).\nLeave the video and open it again in about 30 s.';
-  return repeated(text);
+  return repeated(messagesFor(language).placeholder);
 }
 
 const REPEAT_EVERY_MS = 30_000;
@@ -72,15 +65,11 @@ function repeated(text: string): Buffer {
  * language code on purpose, so the player never picks it instead of the file's own track.
  */
 export function embeddedLabel(language: Language): string {
-  return portuguese(language)
-    ? 'RightSubs: o vídeo já tem legenda embutida no seu idioma, escolha-a no menu'
-    : 'RightSubs: the video already has an embedded subtitle in your language, pick it in the menu';
+  return messagesFor(language).embeddedLabel;
 }
 
 /** What the notice entry shows if it is picked: for a few seconds, then it gets out of the way. */
 export function embeddedNoticeSrt(language: Language): Buffer {
-  const text = portuguese(language)
-    ? '[RightSubs] Este vídeo contém a legenda embutida no seu idioma.\nEscolha-a no menu de legendas (a do próprio vídeo).'
-    : '[RightSubs] This video contains an embedded subtitle in your language.\nPick it in the subtitle menu (the one from the video itself).';
+  const text = messagesFor(language).embeddedNotice;
   return Buffer.from(serializeSrt([{ startMs: 500, endMs: 20_000, text }]), 'utf8');
 }

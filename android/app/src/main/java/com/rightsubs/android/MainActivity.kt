@@ -225,7 +225,7 @@ class MainActivity : Activity() {
         referenceLanguage.setSelection(optionalPosition(choice.reference), false)
     }
 
-    /** Position in a list that starts with "Nenhuma". */
+    /** Position in a list that starts with "None". */
     private fun optionalPosition(tag: String?) = tag?.let { 1 + Languages.ALL.indexOfFirst { it.tag == tag } } ?: 0
 
     private fun optionalTag(spinner: Spinner) = spinner.selectedItemPosition.takeIf { it > 0 }?.let { Languages.ALL[it - 1].tag }
@@ -297,7 +297,7 @@ class MainActivity : Activity() {
         )
         when (val result = CredentialsValidator.validate(input, store.load())) {
             is Validation.Invalid -> {
-                formErrors.text = result.errors.joinToString("\n")
+                formErrors.text = result.errors.joinToString("\n") { getString(it.message) }
                 formErrors.visibility = View.VISIBLE
             }
             is Validation.Ok -> {
@@ -325,6 +325,7 @@ class MainActivity : Activity() {
                     CredentialsValidator.validate(form, store.load()).also { if (it is Validation.Ok) store.save(it.credentials) }
                 },
                 closed = { ending -> runOnUiThread { onPhoneSetupEnded(ending) } },
+                text = ::getString,
             )
         } catch (e: java.io.IOException) {
             Toast.makeText(this, R.string.phone_no_network, Toast.LENGTH_LONG).show()

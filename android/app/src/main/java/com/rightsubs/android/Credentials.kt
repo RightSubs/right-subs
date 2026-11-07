@@ -42,7 +42,20 @@ class CredentialsForm(
 
 sealed interface Validation {
     class Ok(val credentials: Credentials) : Validation
-    class Invalid(val errors: List<String>) : Validation
+    class Invalid(val errors: List<CredentialError>) : Validation
+}
+
+/** What is wrong with a field; [message] is the string resource shown to the user, in the app's language. */
+enum class CredentialError(val message: Int) {
+    API_KEY_MISSING(R.string.error_api_key_missing),
+    API_KEY_INVALID(R.string.error_api_key_invalid),
+    USER_MISSING(R.string.error_user_missing),
+    USER_EMAIL(R.string.error_user_email),
+    USER_INVALID(R.string.error_user_invalid),
+    PASSWORD_MISSING(R.string.error_password_missing),
+    PASSWORD_INVALID(R.string.error_password_invalid),
+    RD_TOKEN_INVALID(R.string.error_rd_token_invalid),
+    DEEPL_KEY_INVALID(R.string.error_deepl_key_invalid),
 }
 
 object CredentialsValidator {
@@ -54,7 +67,7 @@ object CredentialsValidator {
 
     /** Merges the form over the stored credentials (if any) and checks every field. */
     fun validate(form: CredentialsForm, stored: Credentials?): Validation {
-        val errors = mutableListOf<String>()
+        val errors = mutableListOf<CredentialError>()
         // Keys and user names never have surrounding spaces; a password may, so it is kept as typed.
         val apiKey = form.apiKey.trim().ifEmpty { stored?.openSubtitlesApiKey.orEmpty() }
         val user = form.user.trim().ifEmpty { stored?.openSubtitlesUser.orEmpty() }
@@ -64,22 +77,22 @@ object CredentialsValidator {
             else -> form.realDebridToken.trim().ifEmpty { stored?.realDebridToken.orEmpty() }
         }
 
-        if (apiKey.isEmpty()) errors += "Informe a API key da OpenSubtitles."
-        else if (!API_KEY.matches(apiKey)) errors += "API key da OpenSubtitles inválida (só letras e números)."
+        if (apiKey.isEmpty()) errors += CredentialError.API_KEY_MISSING
+        else if (!API_KEY.matches(apiKey)) errors += CredentialError.API_KEY_INVALID
 
         when {
-            user.isEmpty() -> errors += "Informe o nome de usuário da OpenSubtitles."
-            '@' in user -> errors += "Use o nome de usuário da OpenSubtitles, não o e-mail."
-            user.length > 64 || CONTROL.containsMatchIn(user) -> errors += "Nome de usuário da OpenSubtitles inválido."
+            user.isEmpty() -> errors += CredentialError.USER_MISSING
+            '@' in user -> errors += CredentialError.USER_EMAIL
+            user.length > 64 || CONTROL.containsMatchIn(user) -> errors += CredentialError.USER_INVALID
         }
 
         when {
-            password.isEmpty() -> errors += "Informe a senha da OpenSubtitles."
-            password.length > 256 || CONTROL.containsMatchIn(password) -> errors += "Senha da OpenSubtitles inválida."
+            password.isEmpty() -> errors += CredentialError.PASSWORD_MISSING
+            password.length > 256 || CONTROL.containsMatchIn(password) -> errors += CredentialError.PASSWORD_INVALID
         }
 
         if (rdToken.isNotEmpty() && !RD_TOKEN.matches(rdToken)) {
-            errors += "Token do Real-Debrid inválido (copie de real-debrid.com/apitoken)."
+            errors += CredentialError.RD_TOKEN_INVALID
         }
 
         val deepL = when {
@@ -87,7 +100,7 @@ object CredentialsValidator {
             else -> form.deepLApiKey.trim().ifEmpty { stored?.deepLApiKey.orEmpty() }
         }
         if (deepL.isNotEmpty() && !DEEPL_KEY.matches(deepL)) {
-            errors += "Chave do DeepL inválida (copie de deepl.com, em Conta › Chaves de API)."
+            errors += CredentialError.DEEPL_KEY_INVALID
         }
 
         return if (errors.isEmpty()) {

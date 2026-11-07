@@ -33,6 +33,8 @@ class PhoneSetupServer(
     private val submit: (CredentialsForm) -> Validation,
     /** Called once, on the server thread, when the server stops by itself. */
     private val closed: (Ending) -> Unit,
+    /** A string resource in the app's language (Context::getString): every text of the page comes from here. */
+    private val text: (Int) -> String,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     enum class Ending { SAVED, EXPIRED, TOO_MANY_ATTEMPTS }
@@ -105,8 +107,8 @@ class PhoneSetupServer(
         val target = request.getOrNull(1).orEmpty()
         // Only requests made to this address: a web page elsewhere cannot reach the form
         // through a domain that resolves here (DNS rebinding).
-        if (headers["host"] != hostPort) return respond(client, "400 Bad Request", page("Endereço inválido."))
-        if (target.substringBefore('?') != "/") return respond(client, "404 Not Found", page("Página não encontrada."))
+        if (headers["host"] != hostPort) return respond(client, "400 Bad Request", notice(R.string.web_bad_address))
+        if (target.substringBefore('?') != "/") return respond(client, "404 Not Found", notice(R.string.web_not_found))
 
         return when (method) {
             "GET" -> {
@@ -115,7 +117,7 @@ class PhoneSetupServer(
             }
             "POST" -> {
                 val length = headers["content-length"]?.toIntOrNull()
-                if (length == null || length !in 0..MAX_BODY) return respond(client, "413 Payload Too Large", page("Envio inválido."))
+                if (length == null || length !in 0..MAX_BODY) return respond(client, "413 Payload Too Large", notice(R.string.web_bad_request))
                 val body = ByteArray(length)
                 var read = 0
                 while (read < length) {
@@ -125,7 +127,7 @@ class PhoneSetupServer(
                 }
                 post(client, parseForm(String(body, Charsets.UTF_8)))
             }
-            else -> respond(client, "405 Method Not Allowed", page("Método não permitido."))
+            else -> respond(client, "405 Method Not Allowed", notice(R.string.web_method_not_allowed))
         }
     }
 
@@ -134,10 +136,10 @@ class PhoneSetupServer(
         if (!MessageDigest.isEqual(typed.toByteArray(), code.toByteArray())) {
             wrongCodes++
             if (wrongCodes >= MAX_WRONG_CODES) {
-                respond(client, "403 Forbidden", page("Código errado vezes demais. Gere outro formulário na TV."))
+                respond(client, "403 Forbidden", notice(R.string.web_too_many_attempts))
                 return Ending.TOO_MANY_ATTEMPTS
             }
-            return respond(client, "200 OK", form(null, listOf("Código errado: confira o que aparece na TV.")))
+            return respond(client, "200 OK", form(null, listOf(text(R.string.web_wrong_code))))
         }
         val credentials = CredentialsForm(
             apiKey = fields["apiKey"].orEmpty(),
@@ -148,11 +150,11 @@ class PhoneSetupServer(
         )
         return when (val result = submit(credentials)) {
             is Validation.Ok -> {
-                respond(client, "200 OK", page("Pronto! As credenciais foram salvas na TV e o addon está reiniciando. Pode fechar esta página."))
+                respond(client, "200 OK", notice(R.string.web_saved))
                 Ending.SAVED
             }
             // The code was right: keep it filled in, but never send a typed value back.
-            is Validation.Invalid -> respond(client, "200 OK", form(code, result.errors))
+            is Validation.Invalid -> respond(client, "200 OK", form(code, result.errors.map { text(it.message) }))
         }
     }
 
@@ -174,35 +176,40 @@ class PhoneSetupServer(
     }
 
     private fun form(code: String?, errors: List<String>): String {
-        val keep = if (editing) "<p class=\"hint\">Campo em branco mantém o valor salvo na TV.</p>" else ""
+        val keep = if (editing) "<p class=\"hint\">${escape(text(R.string.web_keep))}</p>" else ""
         val problems = if (errors.isEmpty()) "" else "<ul class=\"errors\">${errors.joinToString("") { "<li>${escape(it)}</li>" }}</ul>"
         return page(
             """
-            <p>As credenciais vão direto para a TV pela sua rede Wi-Fi e ficam guardadas só nela.</p>
+            <p>${escape(text(R.string.web_intro))}</p>
             $problems
             <form method="post" action="/" autocomplete="off">
-              <label>Código que aparece na TV
+              <label>${escape(text(R.string.web_code))}
                 <input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required value="${code.orEmpty()}"></label>
-              <label>API key da OpenSubtitles
+              <label>${escape(text(R.string.hint_api_key))}
                 <input name="apiKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-              <label>Nome de usuário da OpenSubtitles (não o e-mail)
+              <label>${escape(text(R.string.hint_user))}
                 <input name="user" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-              <label>Senha da OpenSubtitles
+              <label>${escape(text(R.string.hint_password))}
                 <input name="password" type="password"></label>
-              <label>Token do Real-Debrid (opcional)
+              <label>${escape(text(R.string.hint_rd_token))}
                 <input name="rdToken" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-              <label>Chave do DeepL (opcional)
+              <label>${escape(text(R.string.hint_deepl_key))}
                 <input name="deepLKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
               $keep
-              <button>Enviar para a TV</button>
+              <button>${escape(text(R.string.web_send))}</button>
             </form>
             """.trimIndent(),
         )
     }
 
-    private fun page(content: String) = """
+    /** A page with a single message. */
+    private fun notice(message: Int) = page("<p>${escape(text(message))}</p>")
+
+    private fun page(content: String): String = page(content, escape(text(R.string.web_lang)))
+
+    private fun page(content: String, lang: String) = """
         <!doctype html>
-        <html lang="pt-BR"><head><meta charset="utf-8">
+        <html lang="$lang"><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>RightSubs</title>
         <style>

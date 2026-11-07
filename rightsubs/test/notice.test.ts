@@ -5,7 +5,8 @@ import type { Cue } from '../src/subtitles/srt.ts';
 import { noticeText, withTranslationNotice } from '../src/translation/notice.ts';
 
 const ptBR = findLanguage('pt-BR') as Language;
-const es = findLanguage('es') as Language;
+const it = findLanguage('it') as Language;
+const ko = findLanguage('ko') as Language;
 const cue = (startMs: number, lengthMs = 1000): Cue => ({ startMs, endMs: startMs + lengthMs, text: 'x' });
 const notices = (cues: Cue[]) => cues.filter((c) => c.text.includes('DeepL'));
 
@@ -40,13 +41,14 @@ test('never overlaps a real line, and is left out when the dialogue leaves no ga
   assert.ok(!notices(out).some((c) => c.startMs < 30_000), 'no gap in the first 30 s: no opening notice');
 });
 
-test('is in Portuguese for Portuguese and in English otherwise', () => {
+test('is in the language of the translation', () => {
   assert.match(noticeText(ptBR), /Legenda traduzida por IA \(DeepL\)/);
-  assert.match(noticeText(es), /machine-translated by AI \(DeepL\)/);
+  assert.match(noticeText(it), /Sottotitoli tradotti automaticamente/);
+  assert.match(noticeText(ko), /기계 번역/);
 });
 
 test('says the timing was not confirmed when it was not', () => {
   assert.match(noticeText(ptBR, true), /tempo não confirmado/);
-  assert.match(noticeText(es, true), /timing not confirmed/);
+  assert.match(noticeText(it, true), /sincronizzazione non confermata/);
   assert.equal(withTranslationNotice([cue(10_000)], ptBR, true)[0]?.text, '[Legenda traduzida por IA (DeepL) - tempo não confirmado]');
 });

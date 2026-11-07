@@ -1,3 +1,4 @@
+import { messagesFor } from '../i18n/messages.ts';
 import type { Language } from '../languages/languages.ts';
 import type { Cue } from '../subtitles/srt.ts';
 
@@ -19,16 +20,13 @@ const GAP_MS = 100;
 const SEARCH_MS = 30_000;
 
 /**
- * The notice, in Portuguese for the Portuguese variants and in English otherwise. When the
- * timing of the source subtitle could not be checked against the video, it says so: the
- * viewer must know the subtitle may be early or late.
+ * The notice, in the language of the translation (`src/i18n/messages.ts`). When the timing of
+ * the source subtitle could not be checked against the video, it says so: the viewer must
+ * know the subtitle may be early or late.
  */
 export function noticeText(target: Language, timingUnconfirmed = false): string {
-  const portuguese = target.tag.startsWith('pt-');
-  if (timingUnconfirmed) {
-    return portuguese ? '[Legenda traduzida por IA (DeepL) - tempo não confirmado]' : '[Subtitles machine-translated by AI (DeepL) - timing not confirmed]';
-  }
-  return portuguese ? '[Legenda traduzida por IA (DeepL)]' : '[Subtitles machine-translated by AI (DeepL)]';
+  const messages = messagesFor(target);
+  return timingUnconfirmed ? messages.translatedUnconfirmed : messages.translated;
 }
 
 /**

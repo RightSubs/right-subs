@@ -47,10 +47,12 @@ export function createServer(deps: AppDeps): Server {
   };
   const startedAt = Date.now();
   const manifest = buildManifest(config, version);
+  // Messages to the viewer (subtitle menu, on screen) are in the primary language, whatever the subtitle's.
+  const viewer = config.languages.primary;
 
   const handleSubtitles = async ({ req, res, params }: RouteContext) => {
     const request = parseSubtitlesRequest(params);
-    // Logged in full on purpose: these lines document real Stremio behavior (docs/DESCOBERTAS.md).
+    // Logged in full on purpose: these lines document real Stremio behavior (docs/FINDINGS.md).
     logger.info('subtitles.request', {
       ...(request ?? { params }),
       userAgent: req.headers['user-agent'],
@@ -60,7 +62,7 @@ export function createServer(deps: AppDeps): Server {
     const inFile = resolved && (await subtitles.embeddedLanguage?.(resolved));
     if (resolved && inFile) {
       const host = req.headers.host ?? `${config.server.host}:${config.server.port}`;
-      sendJson(res, 200, { subtitles: [{ id: 'rightsubs-embedded', url: `http://${host}${statusPath(resolved, inFile)}`, lang: embeddedLabel(inFile) }] });
+      sendJson(res, 200, { subtitles: [{ id: 'rightsubs-embedded', url: `http://${host}${statusPath(resolved, inFile)}`, lang: embeddedLabel(viewer) }] });
       return;
     }
     const language = resolved && (await subtitles.chooseLanguage(resolved));
@@ -74,7 +76,7 @@ export function createServer(deps: AppDeps): Server {
     // A translation not ready yet takes longer than Stremio waits: say so in the subtitle menu too.
     if (resolved && (await subtitles.translationPending?.(resolved))) {
       const base = url.slice(0, url.length - trackPath(request, language).length);
-      tracks.push({ id: 'rightsubs-status', url: `${base}${statusPath(request, language)}`, lang: statusLabel(language) });
+      tracks.push({ id: 'rightsubs-status', url: `${base}${statusPath(request, language)}`, lang: statusLabel(viewer) });
     }
     sendJson(res, 200, { subtitles: tracks });
   };
@@ -88,7 +90,7 @@ export function createServer(deps: AppDeps): Server {
     const resolved = await resolve(track);
     const inFile = resolved && (await subtitles.embeddedLanguage?.(resolved));
     if (inFile) {
-      const notice = embeddedNoticeSrt(inFile);
+      const notice = embeddedNoticeSrt(viewer);
       res.writeHead(200, { 'Content-Type': 'application/x-subrip; charset=utf-8', 'Content-Length': notice.length, 'Cache-Control': 'no-store' });
       res.end(res.req.method === 'HEAD' ? undefined : notice);
       return;
@@ -96,7 +98,7 @@ export function createServer(deps: AppDeps): Server {
     // Decided now, not when the entry was listed: the subtitle may be ready by then.
     const pending = Boolean(resolved && (await subtitles.translationPending?.(resolved)));
     logger.info('subtitles.status_requested', { id: track.id, language: track.language.tag, pending });
-    const srt = statusSrt(track.language, pending);
+    const srt = statusSrt(viewer, pending);
     res.writeHead(200, { 'Content-Type': 'application/x-subrip; charset=utf-8', 'Content-Length': srt.length, 'Cache-Control': 'no-store' });
     res.end(res.req.method === 'HEAD' ? undefined : srt);
   };
@@ -116,7 +118,7 @@ export function createServer(deps: AppDeps): Server {
       return;
     }
     logger.info('subtitles.track_requested', { id: track.id, language: track.language.tag, filename: track.filename });
-    // Whether the player was still there when the answer went out (Stremio's 10 s limit): see DESCOBERTAS.
+    // Whether the player was still there when the answer went out (Stremio's 10 s limit): see FINDINGS.
     const requestedAt = Date.now();
     res.on('close', () =>
       logger.info('subtitles.track_closed', { id: track.id, elapsedMs: Date.now() - requestedAt, delivered: res.writableFinished }),
@@ -136,7 +138,7 @@ export function createServer(deps: AppDeps): Server {
       if (first === 'late') {
         preparing.catch(() => {}); // keeps running; a failure is logged by the service
         logger.info('subtitles.placeholder', { id: track.id, language: track.language.tag, waitedMs: translationWaitMs });
-        const message = placeholderSrt(track.language);
+        const message = placeholderSrt(viewer);
         res.writeHead(200, { 'Content-Type': 'application/x-subrip; charset=utf-8', 'Content-Length': message.length, 'Cache-Control': 'no-store' });
         res.end(res.req.method === 'HEAD' ? undefined : message);
         return;

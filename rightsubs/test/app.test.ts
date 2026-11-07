@@ -381,3 +381,29 @@ test('a video that already has a subtitle in the user\'s language gets only a no
   const notice = await (await fetch(list.subtitles[0]?.url ?? '')).text();
   assert.match(notice, /contém a legenda embutida/);
 });
+
+test('messages to the viewer are in the primary language, even when the subtitle is in the secondary', async () => {
+  // Primary pt-BR, secondary English: the file has only the English track.
+  const served = createServer({
+    config: loadConfig({ configFile: writeConfig(), env: FULL_ENV }),
+    logger,
+    version: '0.1.0',
+    tools: { ffmpeg: { available: false }, ffprobe: { available: false } },
+    resources: { idle, lastSweep: () => undefined },
+    providers: [],
+    subtitles: {
+      chooseLanguage: async () => findLanguage('en'),
+      prepare: async () => undefined,
+      embeddedLanguage: async () => findLanguage('en'),
+      status: () => ({}),
+    },
+  });
+  await new Promise<void>((resolve) => served.listen(0, '127.0.0.1', resolve));
+  after(() => served.close());
+  const url = `http://127.0.0.1:${(served.address() as AddressInfo).port}`;
+
+  const list = (await (await fetch(`${url}/subtitles/movie/tt0000003/filename=Movie.mkv.json`)).json()) as { subtitles: { url: string; lang: string }[] };
+  assert.match(list.subtitles[0]?.lang ?? '', /legenda embutida no seu idioma/);
+  assert.match(list.subtitles[0]?.url ?? '', /\/status\/movie\/tt0000003\/en\//, 'the track itself is still the English one');
+  assert.match(await (await fetch(list.subtitles[0]?.url ?? '')).text(), /contém a legenda embutida/);
+});
