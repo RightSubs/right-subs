@@ -8,7 +8,7 @@ const optionsSchema = z
     url: z
       .string()
       .url()
-      .refine((url) => url.endsWith('/manifest.json'), 'deve ser a URL do manifest.json do addon'),
+      .refine((url) => url.endsWith('/manifest.json'), 'must be the URL of the addon\'s manifest.json'),
     timeoutMs: z.number().int().positive().default(8000),
   })
   .strict();
@@ -29,7 +29,7 @@ interface AddonSubtitle {
 
 export const stremioAddon: ProviderType = {
   type: 'stremio-addon',
-  description: 'Qualquer addon de legendas do Stremio, a partir da URL do manifest',
+  description: 'Any Stremio subtitle addon, from its manifest URL',
   options: optionsSchema,
   create: (options, context) => new StremioAddonProvider(options as Options, context),
 };

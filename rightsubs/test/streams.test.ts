@@ -57,7 +57,7 @@ test('a failing or slow indexer does not hide the other', async () => {
     50,
   );
   assert.deepEqual((await instance.streams('movie', 'tt0985699')).streams, sootio.streams);
-  assert.ok(lines.some((line) => line.includes('streams.indexer_failed') && line.includes('sem resposta em 50 ms')));
+  assert.ok(lines.some((line) => line.includes('streams.indexer_failed') && line.includes('no response in 50 ms')));
 
   const broken = proxy({ 'torrentio.example': () => new Response('x', { status: 500 }), 'sootio.example': () => Response.json({ nope: 1 }) });
   assert.deepEqual((await broken.instance.streams('movie', 'tt0985699')).streams, []);

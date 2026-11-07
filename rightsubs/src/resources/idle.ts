@@ -88,7 +88,7 @@ export class IdleMonitor {
     if (this.#state !== 'idle') return;
     logger.info('resources.idle', { rssMB });
     if (rssMB > maxIdleMemoryMB) {
-      logger.info('resources.restart', { rssMB, maxIdleMemoryMB, reason: 'devolver memória ao sistema' });
+      logger.info('resources.restart', { rssMB, maxIdleMemoryMB, reason: 'return memory to the system' });
       requestRestart(EXIT_CLEAN_RESTART);
     }
   }

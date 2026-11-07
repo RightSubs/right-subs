@@ -6,7 +6,7 @@ const language = z.string().transform((value, ctx): Language => {
   if (!found) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: `idioma "${value}" desconhecido — exemplos válidos: ${LANGUAGE_EXAMPLES.join(', ')}`,
+      message: `unknown language "${value}" — valid examples: ${LANGUAGE_EXAMPLES.join(', ')}`,
     });
     return z.NEVER;
   }
@@ -21,13 +21,13 @@ const indexer = z
     url: z
       .string()
       .url()
-      .refine((url) => url.endsWith('/manifest.json'), 'deve ser a URL do manifest.json do addon')
+      .refine((url) => url.endsWith('/manifest.json'), 'must be the URL of the addon\'s manifest.json')
       .optional(),
     timeoutMs: z.number().int().positive().default(10000),
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'obrigatório' });
+    if (entry.enabled && !entry.url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'required' });
   });
 
 /** Finds the file being played in the Real-Debrid download history (no stream proxy needed). */
@@ -40,7 +40,7 @@ const realdebrid = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'obrigatório' });
+    if (entry.enabled && !entry.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'required' });
   });
 
 /** Finds torrents played without a debrid service in Stremio's local streaming server (same device). */
@@ -59,15 +59,15 @@ const deepl = z
     apiKey: z.string().min(1).optional(),
     timeoutMs: z.number().int().positive().default(15000),
     /**
-     * TESTE: com idiomas aqui, o RightSubs ignora as legendas que já existem no idioma principal
-     * e no secundário e traduz sempre, só a partir destes idiomas (mesma conferência de tempo).
-     * Serve para ver a tradução de um episódio que já tem legenda em português.
+     * TESTING ONLY: with languages here, RightSubs ignores the subtitles that already exist in the
+     * primary and secondary languages and always translates, only from these languages (same
+     * timing check). Lets you see the translation of an episode that already has a subtitle.
      */
     forceFrom: z.array(language).max(5).default([]),
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'obrigatório' });
+    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'required' });
   });
 
 /** Generic provider entry; type-specific options are validated by each provider type. */
@@ -161,7 +161,7 @@ export const configSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['languages', 'secondary'],
-        message: 'deve ser diferente do idioma principal',
+        message: 'must differ from the primary language',
       });
     }
     const indexerIds = new Set<string>();

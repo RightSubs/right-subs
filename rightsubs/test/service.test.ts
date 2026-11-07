@@ -127,7 +127,7 @@ test('tries the next candidate when a download fails or is not SRT', async () =>
     ],
     {
       quota: () => {
-        throw new Error('cota diária de downloads esgotada');
+        throw new Error('daily download quota used up');
       },
       ass: Buffer.from('[Script Info]\nTitle: x'),
       good: srt('good'),
@@ -742,11 +742,11 @@ test('the translation is cached: replaying spends no quota', async () => {
 });
 
 test('a translator failure (quota, key) leaves the track unavailable and is logged without the text', async () => {
-  const translator = fakeTranslator('cota mensal do DeepL esgotada');
+  const translator = fakeTranslator('DeepL monthly quota used up');
   const { instance, lines } = translatingService({ 'en-exact': dialogue('Hello') }, [exactEnApi], translator);
   assert.equal(await instance.prepare({ ...movie, language: ptBR }), undefined);
   const failed = lines.find((l) => l.includes('translation.failed')) ?? '';
-  assert.match(failed, /cota mensal/);
+  assert.match(failed, /monthly quota/);
   assert.doesNotMatch(failed, /Hello/);
 });
 

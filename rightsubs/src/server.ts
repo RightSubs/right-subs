@@ -58,29 +58,29 @@ const tools = await detectMediaTools();
 
 if (args.check) {
   const { primary, secondary } = config.languages;
-  console.log(`Configuração válida: ${config.source.configFile}`);
-  console.log(`  idiomas:    ${primary.tag} (principal)${secondary ? `, ${secondary.tag} (secundário)` : ''}`);
+  console.log(`Valid configuration: ${config.source.configFile}`);
+  console.log(`  languages:  ${primary.tag} (primary)${secondary ? `, ${secondary.tag} (secondary)` : ''}`);
   for (const provider of config.providers) {
-    console.log(`  provedor:   ${provider.id} [${provider.type}] ${provider.enabled ? 'habilitado' : 'desabilitado'}`);
+    console.log(`  provider:   ${provider.id} [${provider.type}] ${provider.enabled ? 'enabled' : 'disabled'}`);
   }
   // The URL is not printed: it carries the Real-Debrid key.
   for (const indexer of config.streams.indexers) {
-    console.log(`  indexador:  ${indexer.id} ${indexer.enabled ? 'habilitado' : 'desabilitado'}`);
+    console.log(`  indexer:    ${indexer.id} ${indexer.enabled ? 'enabled' : 'disabled'}`);
   }
   if (config.streams.realdebrid) {
-    console.log(`  realdebrid: ${config.streams.realdebrid.enabled ? 'habilitado' : 'desabilitado'}`);
+    console.log(`  realdebrid: ${config.streams.realdebrid.enabled ? 'enabled' : 'disabled'}`);
   }
   if (config.streams.stremio) {
-    console.log(`  stremio:    ${config.streams.stremio.enabled ? 'habilitado' : 'desabilitado'}`);
+    console.log(`  stremio:    ${config.streams.stremio.enabled ? 'enabled' : 'disabled'}`);
   }
-  console.log(`  ffmpeg:     ${tools.ffmpeg.available ? (tools.ffmpeg.version ?? 'ok') : 'NÃO encontrado'}`);
-  console.log(`  ffprobe:    ${tools.ffprobe.available ? (tools.ffprobe.version ?? 'ok') : 'NÃO encontrado'}`);
+  console.log(`  ffmpeg:     ${tools.ffmpeg.available ? (tools.ffmpeg.version ?? 'ok') : 'NOT found'}`);
+  console.log(`  ffprobe:    ${tools.ffprobe.available ? (tools.ffprobe.version ?? 'ok') : 'NOT found'}`);
   process.exit(0);
 }
 
 const logger = createLogger(config.log.level);
 if (!tools.ffmpeg.available || !tools.ffprobe.available) {
-  logger.warn('tools.missing', { ...tools, hint: 'instale com: pkg install ffmpeg (Termux) ou brew install ffmpeg (Mac)' });
+  logger.warn('tools.missing', { ...tools, hint: 'install it: apt install ffmpeg (Linux), brew install ffmpeg (Mac) or pkg install ffmpeg (Termux)' });
 }
 
 const dataDir = process.env['RIGHTSUBS_HOME'] ?? join(homedir(), '.rightsubs');
@@ -101,7 +101,7 @@ const streams = new StreamProxy({
   logger,
   version,
 });
-// Where the URL of the file being played comes from, in order (docs/PLANO-COMPLEMENTO.md).
+// Where the URL of the file being played comes from, in order (docs/COMPANION-PLAN.md).
 const sources: FileSource[] = [];
 if (streams.enabled) sources.push(streams);
 const realdebrid = config.streams.realdebrid;

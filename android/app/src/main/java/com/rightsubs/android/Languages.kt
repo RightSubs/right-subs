@@ -12,8 +12,8 @@ data class Language(val tag: String, val name: String)
 data class LanguageChoice(val primary: String, val secondary: String?, val reference: String? = "en") {
     init {
         require(Languages.find(primary) != null) { "idioma desconhecido: $primary" }
-        require(secondary == null || (Languages.find(secondary) != null && secondary != primary)) { "secundária inválida: $secondary" }
-        require(reference == null || Languages.find(reference) != null) { "referência inválida: $reference" }
+        require(secondary == null || (Languages.find(secondary) != null && secondary != primary)) { "invalid secondary: $secondary" }
+        require(reference == null || Languages.find(reference) != null) { "invalid reference: $reference" }
     }
 }
 

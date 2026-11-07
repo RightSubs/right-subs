@@ -19,7 +19,7 @@ object ConfigWriter {
         lines = if (languages.secondary != null) {
             set(lines, listOf("languages"), "secondary", languages.secondary)
         } else {
-            replace(lines, listOf("languages"), "secondary", "  # secondary: (nenhuma)")
+            replace(lines, listOf("languages"), "secondary", "  # secondary: (none)")
         }
         lines = set(lines, listOf("sync"), "referenceLanguages", "[${languages.reference.orEmpty()}]")
         lines = set(lines, listOf("streams", "realdebrid"), "enabled", realDebrid.toString())
@@ -40,13 +40,13 @@ object ConfigWriter {
         path.forEachIndexed { depth, block ->
             val header = " ".repeat(depth * 2) + "$block:"
             val at = (start until end).firstOrNull { stripComment(lines[it]) == header }
-                ?: throw IllegalStateException("config.template.yaml sem o bloco ${path.take(depth + 1).joinToString(".")}")
+                ?: throw IllegalStateException("config.template.yaml has no block ${path.take(depth + 1).joinToString(".")}")
             start = at + 1
             end = (start until end).firstOrNull { isOutside(lines[it], depth) } ?: end
         }
         val prefix = " ".repeat(path.size * 2) + "$key:"
         val at = (start until end).firstOrNull { lines[it].startsWith(prefix) }
-            ?: throw IllegalStateException("config.template.yaml sem ${(path + key).joinToString(".")}")
+            ?: throw IllegalStateException("config.template.yaml has no ${(path + key).joinToString(".")}")
         return lines.toMutableList().apply { this[at] = line }
     }
 

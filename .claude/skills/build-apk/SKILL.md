@@ -1,50 +1,49 @@
 ---
 name: build-apk
-description: Gera o APK do RightSubs (normal, de testes com o log legível por adb, ou a partir de alterações ainda não commitadas) e confere o resultado. Use quando o usuário pedir para gerar, recompilar ou atualizar o APK.
+description: Builds the RightSubs APK locally (normal, for testing with the log readable by adb, or from uncommitted changes) and checks the result. Use when the user asks to build, rebuild or update the APK. Releases are not built here: they are built by GitHub Actions (skill new-version).
 ---
 
-# Gerar o APK
+# Building the APK
 
-Tudo roda no container `rightsubs-apk-builder` (Docker Desktop precisa estar aberto: `docker info`). Contexto da arquitetura em `CLAUDE.md`.
+Everything runs in the `rightsubs-apk-builder` container (Docker must be running: `docker info`). Architecture context in `CLAUDE.md`.
 
-## Escolha o tipo
+**APKs for users come from GitHub releases** (`.github/workflows/release.yml`, signed with the organization's key): a local build is for testing. It is signed with the key in `signing/` (created on the first build), so it does not install over a release (and vice versa) without uninstalling.
 
-| Pedido | Comando (PowerShell) | Saída em `out/` |
+## Pick the kind
+
+| Request | Command (macOS/Linux · Windows) | Output in `out/` |
 |---|---|---|
-| APK para distribuir | `.\build.ps1` (versão nova: skill `new-version`) | `rightsubs-<VERSION>-{armeabi-v7a,arm64-v8a,universal}.apk` + `BUILD-INFO.txt` |
-| Testes na box (log legível por adb) | `.\build.ps1 -DebugLog` | `…-debuglog.apk` — **nunca distribuir** |
-| Testar o addon **sem commitar** | acrescente `-WorkingTree` | `rightsubs/` como está no disco, inclusive arquivos novos |
-| Credenciais do `.env` no APK (testes) | acrescente `-Prefill` | `…-prefill.apk` — texto puro, **nunca distribuir**; só vale numa instalação sem credenciais (`pm clear` antes) |
-| Só a box de 32 bits (mais rápido) | acrescente `-Abis armeabi-v7a` | |
-| Rodar os testes do addon antes | acrescente `-Test` (os testes do app rodam em todo build) | |
-| Só os testes, sem APK | `.\test.ps1` (skill `testes`) | — |
+| Local APK | `sh build.sh` · `.\build.ps1` | `rightsubs-{armeabi-v7a,arm64-v8a,universal}.apk` + `BUILD-INFO.txt` |
+| Box tests (log readable by adb) | `DEBUG_LOG=1` · `-DebugLog` | `…-debuglog.apk` — **never distribute** |
+| Test the addon **without committing** | `WORKING_TREE=1` · `-WorkingTree` | `rightsubs/` as it is on disk, new files included |
+| `.env` credentials in the APK (tests) | `PREFILL=1` · `-Prefill` | `…-prefill.apk` — plain text, **never distribute**; only applies to an install without credentials (`pm clear` first) |
+| 32-bit box only (faster) | `ABIS=armeabi-v7a` · `-Abis armeabi-v7a` | |
+| Run the addon tests first | `RUN_TESTS=1` · `-Test` (the app tests run on every build) | |
+| Tests only, no APK | `sh test.sh` · `.\test.ps1` (skill `tests`) | — |
 
-`build.ps1` usa **só o último commit** de `rightsubs/` (`git archive HEAD:rightsubs`); o `../right-subs` não é usado. Cada build apaga o `out/` anterior.
+The build uses **only the last commit** of `rightsubs/` (`git archive HEAD:rightsubs`), unless `WORKING_TREE`. Every build deletes the previous `out/`.
 
-## Testar alterações não commitadas (sem commitar)
+## Testing uncommitted changes (without committing)
 
-`-WorkingTree` (`WORKING_TREE=1` no `build.sh`) tira uma foto do estado atual de `rightsubs/`, **inclusive arquivos novos**, num índice temporário do git (`build/worktree.index`: `read-tree HEAD` + `add -A -- rightsubs` + `write-tree`), sem mexer no stage nem na branch; o `.gitignore` continua valendo (`.env` e `config.yaml` não entram). O app (`android/`) é sempre copiado da pasta como está. Fluxo de teste na box (o que foi usado para a tradução do DeepL):
-
-```powershell
-.\build.ps1 -WorkingTree -Prefill -DebugLog -Test      # APK de teste; -Test roda os testes do addon (os do app rodam sempre)
-```
+`WORKING_TREE=1` (`-WorkingTree`) takes a snapshot of `rightsubs/` as it is now, **new files included**, in a temporary git index (`build/worktree.index`: `read-tree HEAD` + `add -A -- rightsubs` + `write-tree`), without touching the stage or the branch; `.gitignore` still applies (`.env` and `config.yaml` stay out). The app (`android/`) is always copied from the folder as it is. Box test flow (the one used for the DeepL translation):
 
 ```sh
+WORKING_TREE=1 PREFILL=1 DEBUG_LOG=1 RUN_TESTS=1 sh build.sh     # Windows: .\build.ps1 -WorkingTree -Prefill -DebugLog -Test
 export BOX=<ip>   # CLAUDE.local.md
-sh scripts/adb.sh install -r /out/rightsubs-<VERSION>-armeabi-v7a-debuglog-prefill.apk
-sh scripts/adb.sh shell pm clear com.rightsubs.android   # credenciais do .env e cache novos (a tradução em cache some)
+sh scripts/adb.sh install -r /out/rightsubs-armeabi-v7a-debuglog-prefill.apk
+sh scripts/adb.sh shell pm clear com.rightsubs.android   # fresh .env credentials and cache (the cached translation goes away)
 sh scripts/adb.sh shell am start -n com.rightsubs.android/.MainActivity
 ```
 
-O build avisa "Addon montado das alterações não commitadas". Não use `git stash create`: ele ignora arquivos novos e o build sai do `HEAD` sem avisar (o teste `understandsTheBundledTemplate` do `ConfigWriter` pega quando o template muda).
+The build warns "addon built from the uncommitted changes". Do not use `git stash create`: it ignores new files and the build silently uses `HEAD` (the `ConfigWriter` test `understandsTheBundledTemplate` catches a changed template).
 
-## Depois do build
+## After the build
 
-1. Fim do log: `BUILD-INFO.txt` (versões, commit, Node, ffmpeg) e tamanhos dos APKs.
-2. Erros comuns: `SHA-256 não confere` (índice do Termux mudou → rodar de novo); `precisa de X, que não está no APK` (nova dependência do Node no Termux → ajustar `SYSTEM_LIBS`/`termux-node.mjs`); falha do Gradle/lint (ver o log completo).
-3. Para distribuir, rode a skill `release-check`. Para instalar na box, a skill `box`.
-4. Nada de commit sem pedido do usuário.
+1. End of the log: `BUILD-INFO.txt` (versions, commit, Node, ffmpeg) and the APK sizes.
+2. Common errors: `SHA-256 mismatch` (the Termux index changed → run again); `needs X, which is not in the APK` (new Node dependency in Termux → adjust `SYSTEM_LIBS`/`termux-node.mjs`); Gradle/lint failure (read the full log).
+3. To install on the box, the skill `box`. A local APK is not distributed: releases go through the skill `new-version`.
+4. No commit unless the user asks.
 
-## Mudanças no Dockerfile
+## Dockerfile changes
 
-Acrescente camadas no **fim** para não invalidar o cache do SDK/NDK (~3 GB). `docker build -t rightsubs-apk-builder docker`.
+Add layers at the **end** so the SDK/NDK cache (~3 GB) stays valid. `docker build -t rightsubs-apk-builder docker`. CI caches the image too (`docker/build-push-action` with the `gha` cache).

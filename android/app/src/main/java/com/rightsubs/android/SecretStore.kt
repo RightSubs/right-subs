@@ -54,7 +54,7 @@ class SecretStore(context: Context) {
             if (value.isEmpty()) editor.remove(field) else editor.putString(field, encrypt(key, field, value))
         }
         // commit, not apply: the service reads them right after.
-        check(editor.commit()) { "não foi possível gravar as credenciais" }
+        check(editor.commit()) { "could not save the credentials" }
     }
 
     /** Deletes the ciphertexts and the key itself. */

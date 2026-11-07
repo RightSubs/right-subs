@@ -42,7 +42,7 @@ cp "$WORK/src/src/languages/languages.ts" "$OUT/../languages.ts"
 
 # Defense in depth: no secrets or local configuration in the APK.
 if find "$WORK/payload" \( -name '.env' -o -name 'config.yaml' -o -name 'CLAUDE.local.md' \) | grep -q .; then
-  echo "ERRO: arquivo de configuração local no pacote — abortando" >&2
+  echo "ERROR: local configuration file in the bundle — aborting" >&2
   exit 1
 fi
 
@@ -51,4 +51,4 @@ rm -f "$OUT/rightsubs.zip"
 (cd "$WORK/payload" && zip -qr -X "$OUT/rightsubs.zip" .)
 node -p "'RightSubs ' + require('$WORK/payload/package.json').version" > "$OUT/../rightsubs-version.txt"
 rm -rf "$WORK"
-echo "Pacote do RightSubs: $(cat "$OUT/../rightsubs-version.txt")"
+echo "RightSubs bundle: $(cat "$OUT/../rightsubs-version.txt")"

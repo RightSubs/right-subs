@@ -52,8 +52,8 @@ test('quota, key and retry-after errors', async () => {
     const double = api(() => ((calls += 1), { status, headers: extra, texts: [] }));
     return { calls: () => calls, deepl: new DeepL({ apiKey: 'k', timeoutMs: 1000, fetch: double.fetch, sleep: async () => {} }) };
   };
-  await assert.rejects(make(456).deepl.translate(['a'], ptBR, en), /cota mensal/);
-  await assert.rejects(make(403).deepl.translate(['a'], ptBR, en), /chave do DeepL recusada/);
+  await assert.rejects(make(456).deepl.translate(['a'], ptBR, en), /monthly quota/);
+  await assert.rejects(make(403).deepl.translate(['a'], ptBR, en), /DeepL key rejected/);
   const limited = make(429, { 'retry-after': '1' });
   await assert.rejects(limited.deepl.translate(['a'], ptBR, en), /429/);
   assert.equal(limited.calls(), 2, 'one retry');

@@ -6,7 +6,7 @@ import { parseEnv } from 'node:util';
 
 const [envFile, out] = process.argv.slice(2);
 if (!envFile || !out) {
-  console.error('uso: node write-prefill.mjs <.env> <saida.json>');
+  console.error('usage: node write-prefill.mjs <.env> <output.json>');
   process.exit(2);
 }
 
@@ -16,7 +16,7 @@ const OPTIONAL = ['RD_TOKEN', 'DEEPL_API_KEY'];
 
 const missing = REQUIRED.filter((key) => !env[key]);
 if (missing.length > 0) {
-  console.error(`faltam no .env: ${missing.join(', ')}`);
+  console.error(`missing in .env: ${missing.join(', ')}`);
   process.exit(1);
 }
 

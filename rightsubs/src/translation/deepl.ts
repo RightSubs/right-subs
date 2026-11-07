@@ -80,20 +80,20 @@ export class DeepL implements Translator {
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
-      throw new Error(`DeepL inacessível: ${(err as Error).message}`);
+      throw new Error(`DeepL unreachable: ${(err as Error).message}`);
     }
     if (response.status === 429 && !retried) {
       const wait = Number(response.headers.get('retry-after'));
       await sleep(Number.isFinite(wait) && wait > 0 ? Math.min(wait, 10) * 1000 : 2000);
       return this.#request(texts, target, source, true);
     }
-    if (response.status === 456) throw new Error('cota mensal do DeepL esgotada');
-    if (response.status === 403 || response.status === 401) throw new Error('chave do DeepL recusada');
+    if (response.status === 456) throw new Error('DeepL monthly quota used up');
+    if (response.status === 403 || response.status === 401) throw new Error('DeepL key rejected');
     if (!response.ok) throw new Error(`DeepL respondeu ${response.status}`);
     const body = (await response.json()) as { translations?: { text?: unknown }[] };
     const translated = body.translations?.map((item) => item.text);
     if (!translated || translated.length !== texts.length || translated.some((text) => typeof text !== 'string')) {
-      throw new Error('resposta inesperada do DeepL');
+      throw new Error('unexpected response from DeepL');
     }
     onCharacters?.(texts.reduce((sum, text) => sum + text.length, 0));
     return translated as string[];

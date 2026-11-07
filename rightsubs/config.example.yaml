@@ -1,20 +1,20 @@
-# Configuração do RightSubs. Copie para config.yaml e ajuste:  cp config.example.yaml config.yaml
-# Segredos ficam no .env e são referenciados aqui como ${NOME_DA_VARIAVEL}.
-# Depois de editar, valide com:  npm run check-config
-# Explicação de cada opção: docs/CONFIGURACAO.md
+# RightSubs configuration. Copy it to config.yaml and adjust:  cp config.example.yaml config.yaml
+# Secrets live in .env and are referenced here as ${VARIABLE_NAME}.
+# After editing, validate with:  npm run check-config
+# Every option explained: docs/CONFIGURATION.md
 
 server:
-  host: 127.0.0.1        # só a própria box acessa o addon
+  host: 127.0.0.1        # only this device reaches the addon
   port: 7000
 
 languages:
-  primary: pt-BR         # idioma que você quer ver
-  secondary: en-US       # usado quando não existe legenda no principal
-  useSecondaryWhen:      # not_found = principal não existe
-    - not_found          # (low_confidence: aceito, mas só terá efeito com a fase 4)
+  primary: pt-BR         # the language you want to watch in
+  secondary: en-US       # used when there is no subtitle in the primary
+  useSecondaryWhen:      # not_found = no subtitle in the primary
+    - not_found          # (low_confidence: accepted, but has no effect yet)
 
-# Fontes de legenda, em ordem de prioridade.
-# Qualquer addon de legendas do Stremio pode entrar com type: stremio-addon + url do manifest.
+# Subtitle sources, in order of priority.
+# Any Stremio subtitle addon can be added with type: stremio-addon + its manifest url.
 providers:
   - id: opensubtitles-api
     type: opensubtitles-api
@@ -22,7 +22,7 @@ providers:
     apiKey: ${OPENSUBTITLES_API_KEY}
     username: ${OPENSUBTITLES_USER}
     password: ${OPENSUBTITLES_PASSWORD}
-    downloadVia: opensubtitles-v3   # baixa pelo addon v3 (sem cota) quando possível
+    downloadVia: opensubtitles-v3   # downloads through the v3 addon (no quota) when possible
 
   - id: opensubtitles-v3
     type: stremio-addon
@@ -32,12 +32,12 @@ providers:
   # - id: subdl
   #   type: stremio-addon
   #   enabled: true
-  #   url: <URL do manifest do addon SubDL>
+  #   url: <manifest URL of the SubDL addon>
 
-# Indexadores de streams (Torrentio, Sootio…) já configurados com o Real-Debrid.
-# O RightSubs devolve a lista de cada um sem alterar nada e anota qual arquivo está
-# tocando (para ler fps e faixas embutidas). Depois de ligar, desinstale-os do Stremio.
-# URLs no .env (contêm a chave do RD). Mude enabled para true depois de preencher.
+# Stream indexers (Torrentio, Sootio…) already set up with Real-Debrid.
+# RightSubs returns each one's list unchanged and notes which file is playing
+# (to read its fps and embedded tracks). Once enabled, uninstall them from Stremio.
+# URLs in .env (they carry the RD key). Set enabled to true after filling them in.
 streams:
   indexers:
     - id: torrentio
@@ -46,57 +46,57 @@ streams:
     - id: sootio
       enabled: false
       url: ${SOOTIO_URL}
-  # Modo complemento: Torrentio/Sootio continuam instalados no Stremio (indexadores acima
-  # desligados) e o RightSubs acha o arquivo que está tocando no histórico de downloads
-  # do Real-Debrid. Token no .env (RD_TOKEN). Mude enabled para true depois de preencher.
+  # Companion mode: Torrentio/Sootio stay installed in Stremio (indexers above disabled)
+  # and RightSubs finds the file that is playing in the Real-Debrid download history.
+  # Token in .env (RD_TOKEN). Set enabled to true after filling it in.
   realdebrid:
     enabled: false
     token: ${RD_TOKEN}
-  # Torrent sem Real-Debrid: o Stremio baixa pelo servidor de streaming dele, no mesmo
-  # aparelho, e o RightSubs lê o fps do arquivo por ali (não lê a legenda embutida, para
-  # não roubar banda do vídeo). Só serve se o RightSubs roda no aparelho do Stremio.
+  # Torrents without Real-Debrid: Stremio downloads through its own streaming server on the
+  # same device, and RightSubs reads the file's fps from there (not the embedded subtitle,
+  # so as not to take bandwidth from the video). Only works if RightSubs runs on Stremio's device.
   stremio:
     enabled: false
     url: http://127.0.0.1:11470
 
 sync:
   enabled: true
-  budgetSeconds: 15      # quanto esperar a sincronização antes de entregar o melhor disponível
-  minConfidence: 0.7     # abaixo disso, a sincronização é considerada incerta
-  # Só para sincronizar, nunca aparece na tela: legendas feitas para o arquivo exato (ou a
-  # mesma versão do filme) nesses idiomas servem de referência, e a faixa embutida nesses
-  # idiomas é a preferida. A maioria das legendas exatas está em inglês. [] = só os idiomas acima.
+  budgetSeconds: 15      # how long to wait for syncing before serving the best available
+  minConfidence: 0.7     # below this, the sync is considered uncertain
+  # Only for syncing, never shown: subtitles made for the exact file (or the same version of
+  # the movie) in these languages serve as reference, and the embedded track in these
+  # languages is preferred. Most exact subtitles are in English. [] = only the languages above.
   referenceLanguages: [en]
-  embedded:              # legenda em texto embutida no arquivo como referência (lê alguns trechos do vídeo pela rede)
+  embedded:              # text subtitle embedded in the file as reference (reads a few stretches of the video over the network)
     enabled: true
-    windows: 3           # trechos lidos (nas partes com mais fala)
-    windowSeconds: 45    # duração de cada trecho: ~4 s e ~40 MB num 4K (nada é gravado em disco)
+    windows: 3           # stretches read (in the parts with the most dialogue)
+    windowSeconds: 45    # length of each stretch: ~4 s and ~40 MB on a 4K file (nothing is written to disk)
   audio:
-    samples: 8           # trechos de áudio analisados por arquivo
-    sampleSeconds: 45    # duração de cada trecho
+    samples: 8           # audio stretches analyzed per file
+    sampleSeconds: 45    # length of each stretch
 
-# Último recurso: sem legenda no idioma principal nem no secundário, traduz com o DeepL uma
-# legenda de QUALQUER idioma, mas só se o tempo dela estiver confirmado (6 trechos da faixa
-# embutida, conferidos nas duas metades; legendas feitas para outro corte são recusadas); a
-# traduzida fica no cache. Chave no .env (DEEPL_API_KEY). Mude enabled para true depois de
-# preencher. Mais em docs/TRADUCAO-DEEPL.md.
-# forceFrom: [en]   # SÓ PARA TESTE: traduz sempre, só destes idiomas, mesmo com PT existente
+# Last resort: with no subtitle in the primary or secondary language, translates with DeepL a
+# subtitle in ANY language, but only if its timing is confirmed (6 stretches of the embedded
+# track, checked in both halves; subtitles made for another cut are refused); the translation
+# is cached. Key in .env (DEEPL_API_KEY). Set enabled to true after filling it in.
+# More in docs/DEEPL-TRANSLATION.md.
+# forceFrom: [en]   # TESTING ONLY: always translates, only from these languages, even with an existing subtitle
 translation:
   deepl:
     enabled: false
     apiKey: ${DEEPL_API_KEY}
 
-# Uso de recursos da box: o RightSubs só trabalha quando o Stremio pede.
+# Resource use on the device: RightSubs only works when Stremio asks.
 resources:
-  idleAfterMinutes: 10   # sem pedidos do Stremio por este tempo → libera memória e limpa temporários
-  maxIdleMemoryMB: 80    # se ainda estiver acima disso ao ficar ocioso, reinicia limpo
-  maxConcurrentJobs: 1   # sincronizações simultâneas (a box tem CPU modesta)
-  lowPriority: true      # o serviço e o ffmpeg sempre cedem CPU para o Stremio
+  idleAfterMinutes: 10   # no Stremio request for this long → frees memory and clears temporary files
+  maxIdleMemoryMB: 80    # if still above this when idle, restarts clean
+  maxConcurrentJobs: 1   # simultaneous syncs (TV boxes have modest CPUs)
+  lowPriority: true      # the service and ffmpeg always yield CPU to Stremio
 
 cache:
   dir: ~/.rightsubs/cache
-  maxSizeMB: 50          # legendas têm ~50–100 KB: cabem centenas de filmes
-  maxAgeDays: 10         # legendas não usadas há mais tempo são apagadas
+  maxSizeMB: 50          # subtitles are ~50–100 KB: hundreds of movies fit
+  maxAgeDays: 10         # subtitles unused for longer are deleted
 
 log:
   level: info            # debug | info | warn | error

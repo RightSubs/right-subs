@@ -38,7 +38,7 @@ export class StremioServerSource implements FileSource {
     const res = await fetch(`${base}/stats.json`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const engines = (await res.json()) as unknown;
-    if (!engines || typeof engines !== 'object') throw new Error('resposta inesperada de /stats.json');
+    if (!engines || typeof engines !== 'object') throw new Error('unexpected response from /stats.json');
 
     const name = query.filename.toLowerCase();
     for (const engine of Object.values(engines as Record<string, TorrentEngine>)) {

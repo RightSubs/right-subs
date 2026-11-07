@@ -45,4 +45,4 @@ convert -size 320x180 "xc:$BG" \
   -strip "$RES/drawable-xhdpi/banner.png"
 
 rm -rf "$TMP"
-echo "Ícones gerados em $RES"
+echo "Icons generated in $RES"

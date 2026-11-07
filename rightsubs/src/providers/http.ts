@@ -30,7 +30,7 @@ export async function request(context: ProviderContext, url: string, options: Re
     });
   } catch (err) {
     const timedOut = (err as Error).name === 'TimeoutError';
-    throw new ProviderError(context.id, timedOut ? `sem resposta em ${timeoutMs} ms` : (err as Error).message);
+    throw new ProviderError(context.id, timedOut ? `no response in ${timeoutMs} ms` : (err as Error).message);
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -44,15 +44,15 @@ export async function requestJson<T>(context: ProviderContext, url: string, opti
   try {
     return (await res.json()) as T;
   } catch {
-    throw new ProviderError(context.id, 'resposta não é JSON válido');
+    throw new ProviderError(context.id, 'response is not valid JSON');
   }
 }
 
 export async function requestFile(context: ProviderContext, url: string, timeoutMs: number): Promise<Buffer> {
   const res = await request(context, url, { timeoutMs });
   const declared = Number(res.headers.get('content-length') ?? 0);
-  if (declared > MAX_BODY_BYTES) throw new ProviderError(context.id, `arquivo grande demais (${declared} bytes)`);
+  if (declared > MAX_BODY_BYTES) throw new ProviderError(context.id, `file too large (${declared} bytes)`);
   const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.length > MAX_BODY_BYTES) throw new ProviderError(context.id, `arquivo grande demais (${buffer.length} bytes)`);
+  if (buffer.length > MAX_BODY_BYTES) throw new ProviderError(context.id, `file too large (${buffer.length} bytes)`);
   return buffer;
 }

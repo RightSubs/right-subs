@@ -20,7 +20,7 @@ class QrCode private constructor(val size: Int, private val modules: Array<Boole
         fun encode(text: String): QrCode {
             val data = text.toByteArray(Charsets.UTF_8)
             val version = (1..MAX_VERSION).firstOrNull { 4 + countBits(it) + data.size * 8 <= dataCodewords(it) * 8 }
-                ?: throw IllegalArgumentException("texto longo demais para o QR: ${data.size} bytes")
+                ?: throw IllegalArgumentException("text too long for the QR code: ${data.size} bytes")
 
             val bits = Bits()
             bits.append(0b0100, 4) // byte mode

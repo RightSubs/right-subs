@@ -48,7 +48,7 @@ const episode: SubtitleQuery = {
   languages: [ptBR, en],
 };
 
-// Shapes copied from real responses (docs/DESCOBERTAS.md).
+// Shapes copied from real responses (docs/FINDINGS.md).
 const V3_RESPONSE = {
   subtitles: [
     {
@@ -137,7 +137,7 @@ test('stremio-addon: HTTP errors and timeouts become ProviderError', async () =>
   const slow = (async (_input: string | URL, init: RequestInit = {}) =>
     new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)))) as typeof globalThis.fetch;
   const timed = stremioAddon.create({ url: 'https://addon.example/manifest.json', timeoutMs: 20 }, context(slow, 'addon'));
-  await assert.rejects(timed.search(episode), /sem resposta em 20 ms/);
+  await assert.rejects(timed.search(episode), /no response in 20 ms/);
 });
 
 test('opensubtitles-api: searches with sorted params and links copies on the v3 addon', async () => {
@@ -204,7 +204,7 @@ test('opensubtitles-api: stops downloading once the quota is exhausted', async (
   const candidate = { providerId: 'api', ref: '1', language: ptBR };
 
   await assert.rejects(provider.download(candidate), (err) => err instanceof ProviderError && err.status === 406);
-  await assert.rejects(provider.download(candidate), /cota diária de downloads esgotada/);
+  await assert.rejects(provider.download(candidate), /daily download quota used up/);
   assert.equal(downloads, 1, 'no new API call while the quota is known to be exhausted');
   assert.equal((provider.status?.()['quota'] as { remaining: number }).remaining, 0);
 });
@@ -221,7 +221,7 @@ test('opensubtitles-api: a refused login falls back to anonymous downloads', asy
 
   assert.equal(calls.filter((c) => c.url.includes('/login')).length, 1, 'does not hammer the login endpoint');
   assert.equal(calls.find((c) => c.url.includes('/download'))?.headers['Authorization'], undefined);
-  assert.equal(provider.status?.()['login'], 'recusado');
+  assert.equal(provider.status?.()['login'], 'rejected');
 });
 
 test('opensubtitles-api: renews an expired token once', async () => {

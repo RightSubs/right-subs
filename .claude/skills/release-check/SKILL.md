@@ -1,42 +1,51 @@
 ---
 name: release-check
-description: Checklist de segurança antes de distribuir um APK do RightSubs ou commitar este repositório — confere que não há credenciais, recursos de debug, chave de assinatura ou dados locais no APK ou no git. Use antes de enviar um APK a alguém, publicar, ou fazer commit/push.
+description: Security checklist before committing or pushing this repository, or before handing anyone an APK — checks that no credentials, debug features, signing key or local data are in git or in the APK. Use before a commit/push, before a release, or before sending an APK to someone.
 ---
 
-# Antes de distribuir ou commitar
+# Before committing, releasing or handing out an APK
 
-Rode tudo; relate cada item ao usuário (ok / problema). Não imprima valores de segredos — só contagens.
+Run everything; report each item to the user (ok / problem). Never print secret values — only counts.
 
-**Barreiras automáticas** (conferem os mesmos itens, mas não substituem esta checagem): `scripts/check-no-secrets.sh apk <apk>…` roda em **todo build que não é `-Prefill`** e apaga os APKs se achar `prefill.json`, `.env`/`config.yaml` ou qualquer valor dos `.env` neles; `scripts/check-no-secrets.sh staged` roda no hook de commit (`scripts/git-hooks/pre-commit`, ativo com `git config core.hooksPath scripts/git-hooks`). Os dois mostram só o **nome** da variável e o arquivo, nunca o valor.
+**Automatic barriers** (they check the same things, but do not replace this checklist): `scripts/check-no-secrets.sh apk <apk>…` runs on **every build that is not `-Prefill`** (releases included) and deletes the APKs if it finds `prefill.json`, `.env`/`config.yaml` or any `.env` value in them; `scripts/check-no-secrets.sh staged` runs in the commit hook (`scripts/git-hooks/pre-commit`, active with `git config core.hooksPath scripts/git-hooks`). Both show only the variable's **name** and the file, never the value. The release workflow also refuses test builds (`DO-NOT-DISTRIBUTE.txt`, `-prefill`, `-debuglog`) and requires the organization's key (`REQUIRE_SIGNING_KEY=1`).
 
-## APK a distribuir
+## Committing this repository
 
-1. **Não é de testes:** o nome não tem `-debuglog` nem `-prefill` (testes, `-Prefill` leva as credenciais do `.env` em texto puro), não existe `out/NAO-DISTRIBUIR.txt` e não há `assets/prefill.json`:
-   `unzip -l out/<apk> | grep -c prefill` → `0`. `out/BUILD-INFO.txt` com a versão certa e commit sem `+alterações`.
-2. **Sem os segredos dos `.env` deste repositório** (raiz e `rightsubs/`) (extrai o APK e o `rightsubs.zip` num diretório do scratchpad e procura cada valor ≥ 6 caracteres):
+- `git diff --cached --name-only` must not contain: `.env`, `*.env`, `signing/`, `out/`, `build/`, `CLAUDE.local.md`, `android/local.properties`.
+- No `.env` value in tracked files (`git grep -F -- <value>` with the loop below, over `git ls-files`).
+- No box IP nor Real-Debrid links in tracked files (`git grep -nE '192\.168\.|download\.real-debrid'`).
+- Code, comments, logs, scripts and docs in English; only the app's Portuguese strings (`values-pt/`) and the translated viewer messages (`rightsubs/src/i18n/messages.ts`) are in other languages.
+- Commit only when the user asks; author = local `git config`.
+
+## A release (GitHub Actions)
+
+- Before the tag: the skill `new-version` (tag = `VERSION`, notes in `CHANGELOG.md`, CI green).
+- After it: the release has the three APKs, `SHA256SUMS.txt` and `BUILD-INFO.txt` (commit without `+dirty`), and no `-prefill`/`-debuglog` file.
+- The signing key lives only in the repository secrets and in the organization's offline backup: never in git, never in `signing/` of a shared machine.
+
+## An APK handed to someone outside a release
+
+Prefer the release link. If a local APK must go out anyway:
+
+1. **Not a test build:** no `-debuglog` or `-prefill` in the name (`-Prefill` carries the `.env` credentials in plain text), no `out/DO-NOT-DISTRIBUTE.txt` and no `assets/prefill.json`:
+   `unzip -l out/<apk> | grep -c prefill` → `0`. `out/BUILD-INFO.txt` with the right version and a commit without `+dirty`.
+2. **None of this repository's `.env` secrets** (root and `rightsubs/`) (extracts the APK and the `rightsubs.zip` into a scratchpad folder and searches for each value ≥ 6 characters):
    ```sh
    W=<scratchpad>/apkcheck; rm -rf $W; mkdir -p $W/x $W/p
    unzip -q out/<apk> -d $W/x && unzip -q $W/x/assets/rightsubs.zip -d $W/p
-   find $W/p \( -name '.env' -o -name 'config.yaml' -o -name 'CLAUDE.local.md' \)   # → nada
+   find $W/p \( -name '.env' -o -name 'config.yaml' -o -name 'CLAUDE.local.md' \)   # → nothing
    for f in .env rightsubs/.env; do [ -f $f ] || continue; n=0; h=0
      while IFS= read -r l; do v=$(printf '%s' "$l" | sed -n "s/^[A-Z_]*=//p" | sed "s/^['\"]//; s/['\"]$//")
        [ ${#v} -ge 6 ] || continue; n=$((n+1)); grep -rqF -- "$v" $W/x $W/p && h=$((h+1)); done < $f
-     echo "$f: $n testados, $h encontrados"; done      # → 0 encontrados
+     echo "$f: $n tested, $h found"; done      # → 0 found
    rm -rf $W
    ```
-3. **Log de debug desligado:** o build normal passa `-PdebugLog=false` (a primeira linha do `BUILD-INFO.txt` não cita `-debuglog`).
-4. **Assinatura:** `apksigner verify --print-certs out/<apk>` dentro do container mostra o certificado `CN=RightSubs` (mesma chave das versões anteriores; senão o usuário não consegue atualizar por cima).
-5. **TLS do ffmpeg com verificação:** `grep -c "Unable to set the host to verify" $W/x/lib/*/libffmpeg.so` ≥ 1 (patch aplicado).
-6. Entregue junto o `out/SHA256SUMS.txt`.
+3. **Debug log off:** the normal build passes `-PdebugLog=false` (the first line of `BUILD-INFO.txt` does not mention `-debuglog`).
+4. **Signature:** `apksigner verify --print-certs out/<apk>` inside the container. A local build is signed with the local key, so it **does not install over a release**: say so to whoever receives it.
+5. **ffmpeg TLS with verification:** `grep -c "Unable to set the host to verify" $W/x/lib/*/libffmpeg.so` ≥ 1 (patch applied).
+6. Hand `out/SHA256SUMS.txt` over with it.
 
-## Commit deste repositório
+## Reminders
 
-- `git diff --cached --name-only` não pode conter: `.env`, `*.env`, `signing/`, `out/`, `build/`, `CLAUDE.local.md`, `android/local.properties`.
-- Nenhum valor do `.env` nos arquivos versionados (`git grep -F -- <valor>` com o mesmo laço acima, sobre `git ls-files`).
-- Nem o IP da box nem links do Real-Debrid em arquivos versionados (`git grep -nE '192\.168\.|download\.real-debrid'`).
-- Commit só quando o usuário pedir; autor = `git config` local.
-
-## Lembretes
-
-- **Backup da chave:** `signing/` (fora do git). Sem ela, nenhuma atualização do APK instala por cima.
-- **Recursos de testes** que existem no código: cópia do log (`-DebugLog`) e credenciais do `.env` (`-Prefill`); `-WorkingTree` só muda a origem do addon, e `translation.deepl.forceFrom` só vale no `config.yaml` do PC. Ver "Recursos SÓ DE TESTES" no `CLAUDE.md`. O laço de segredos acima já cobre a `DEEPL_API_KEY` do `.env`.
+- **Key backup:** the organization's keystore and password, kept offline. Without them no update installs over the published versions.
+- **Testing features** in the code: log copy (`-DebugLog`) and `.env` credentials (`-Prefill`); `-WorkingTree` only changes where the addon comes from, and `translation.deepl.forceFrom` only applies to a computer's `config.yaml`. See "Testing-only features" in `CLAUDE.md`. The secrets loop above covers the `.env` `DEEPL_API_KEY` too.

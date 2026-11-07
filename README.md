@@ -1,267 +1,251 @@
-# RightSubs — APK
+# RightSubs
 
-O [RightSubs](rightsubs/) num APK para Android TV/Google TV (e celular/tablet). Instala como qualquer app: sem Termux, sem linha de comando, sem script de boot. Na primeira abertura ele pede as credenciais, guarda-as criptografadas e sobe o addon em `http://127.0.0.1:7000/manifest.json`.
+A Stremio subtitle addon that runs on your own Android TV / Google TV (or phone) and serves **one subtitle, already chosen and synced**, in your language: pick any file, press play and watch, without choosing a subtitle or adjusting the delay.
 
-O que vai dentro do APK:
+It ships as an APK: it installs like any app, with no Termux, command line or boot script. On first launch it asks for the credentials, stores them encrypted and starts the addon at `http://127.0.0.1:7000/manifest.json`.
 
-| Peça | Origem |
+What is inside the APK:
+
+| Part | Origin |
 |---|---|
-| RightSubs (`dist/` + `yaml` e `zod`) | pasta [rightsubs/](rightsubs/) deste repositório, no último commit (`git archive`) |
-| Node.js 24 LTS | pacote `nodejs-lts` do Termux, o mesmo que já roda na box, com as bibliotecas de que ele precisa |
-| ffmpeg + ffprobe | compilados aqui com o NDK, mínimos: só leem cabeçalhos e legendas em texto por HTTP(S) e gravam SRT |
-| App Android | Kotlin, sem bibliotecas além da stdlib: tela de credenciais, serviço em primeiro plano, início no boot |
+| RightSubs addon (`dist/` + `yaml` and `zod`) | the [rightsubs/](rightsubs/) folder of this repository, at the last commit (`git archive`) |
+| Node.js 24 LTS | Termux's `nodejs-lts` package, with the libraries it needs |
+| ffmpeg + ffprobe | built here with the NDK, minimal: they only read headers and text subtitles over HTTP(S) and write SRT |
+| Android app | Kotlin, no libraries besides the stdlib: credentials screen, foreground service, start on boot |
 
-## Segurança das credenciais
+The app speaks English and Portuguese (it follows the device language; on Android 13+ it can also be set per app). The messages RightSubs shows inside Stremio follow the primary subtitle language you pick, in [16 languages](rightsubs/src/i18n/messages.ts).
 
-- **Armazenamento:** API key, usuário e senha da OpenSubtitles, token do Real-Debrid e chave do DeepL (os dois últimos opcionais) são cifrados com AES-256-GCM. A chave é gerada dentro do **Android Keystore** (no hardware quando o aparelho tem; StrongBox quando existe) e não pode ser exportada: o arquivo cifrado não serve para nada fora deste aparelho. Cada campo é amarrado ao seu nome (AAD), então não dá para trocar um pelo outro.
-- **Nada em texto puro no disco:** não existe `.env`. O `config.yaml` gerado mantém os `${VAR}` e os valores vão para o Node só como variáveis de ambiente do processo (no Android, só o próprio app enxerga). Nunca vão na linha de comando.
-- **Sem backup:** `allowBackup=false` e regras de extração vazias: nada vai para o backup na nuvem nem para a transferência entre aparelhos.
-- **Tela:** `FLAG_SECURE` (sem captura de tela, gravação, transmissão nem miniatura nos recentes); campos com o texto oculto, sem sugestões nem aprendizado do teclado (`flagNoPersonalizedLearning`), sem preenchimento automático (outros apps não recebem os valores) e sem gravar o conteúdo no estado salvo da tela. Depois de salvos, os valores **nunca voltam a aparecer**: editar só substitui (campo em branco mantém o atual). "Apagar credenciais" apaga os dados cifrados e a própria chave do Keystore.
-- **Log:** toda linha do Node passa por um filtro que troca qualquer credencial (também na forma codificada em URL) por `***` antes de chegar ao arquivo ou à tela.
-- **Preencher pelo celular:** o botão abre, só enquanto a tela está aberta, um formulário na rede de casa (`http://<IP da TV>:7001`), com QR e um código de 6 dígitos que só aparece na TV. Fecha depois de um envio aceito, em 10 minutos, com 5 códigos errados ou ao sair da tela. O envio vai **sem criptografia própria**, protegido só pela senha do Wi-Fi: prefira fazer isso numa rede de confiança.
-- **Rede:** o addon só escuta em `127.0.0.1` (só apps do próprio aparelho, como o Stremio, acessam). O app em si só fala HTTP com `127.0.0.1`; o resto exige HTTPS com CAs do sistema. O ffmpeg foi corrigido para **verificar o certificado e o nome do servidor** (o padrão do ffmpeg é não verificar; ver [patches/ffmpeg-tls-verify.patch](patches/ffmpeg-tls-verify.patch)).
-- **Componentes:** só a tela principal é exportada; o serviço não é; o receptor de boot só reage aos avisos do sistema.
-- **Build:** o pacote do RightSubs vem do `git archive` de `rightsubs/` no último commit, então `.env` e `config.yaml` do seu computador nunca entram; o script ainda confere isso. `npm ci --ignore-scripts` (nada do registro roda no build). Os `.deb` do Termux são conferidos pelo SHA-256 do índice do repositório; ffmpeg, Android SDK e Gradle por hash fixo ou publicado.
+## Install
 
-## Gerar o APK
+### 1. Download the APK
 
-Requisitos: **Docker Desktop** (rodando) e Git. Todo o resto (JDK, Android SDK, NDK, Gradle, Node) fica dentro do container.
+From the [latest release](https://github.com/RightSubs/right-subs/releases/latest):
+
+| File | For |
+|---|---|
+| `rightsubs-armeabi-v7a.apk` | Chromecast with Google TV and most TV boxes (32-bit) |
+| `rightsubs-arm64-v8a.apk` | NVIDIA Shield TV, recent phones |
+| `rightsubs-universal.apk` | either of the two (bigger) |
+
+These links always point at the newest version:
+
+- `https://github.com/RightSubs/right-subs/releases/latest/download/rightsubs-armeabi-v7a.apk`
+- `https://github.com/RightSubs/right-subs/releases/latest/download/rightsubs-arm64-v8a.apk`
+- `https://github.com/RightSubs/right-subs/releases/latest/download/rightsubs-universal.apk`
+
+**On a TV** (Google TV has no browser): install the **Downloader** app from the Play Store, type one of the links above (or its short code, when published) and install. Allow "install unknown apps" for Downloader when asked.
+
+Each release comes with `SHA256SUMS.txt` and a build provenance attestation: `gh attestation verify rightsubs-universal.apk --repo RightSubs/right-subs` confirms the APK was built from this repository by its release workflow.
+
+### 2. Set it up
+
+**First, prepare** a free OpenSubtitles account (opensubtitles.com): profile → **API consumers** → **New consumer** (name `RightSubs`, tick **Allow anonymous downloads**) and note the **API key**, the **username** (not the e-mail: the login is refused with an e-mail) and the password. Real-Debrid is optional: token at real-debrid.com/apitoken. So is DeepL: a free key at deepl.com (Account › API Keys, it ends in `:fx`; 500,000 characters a month) lets RightSubs translate a subtitle when none exists in your languages.
+
+1. If the old Termux RightSubs is installed on the box, remove it first (in Termux: `sh ~/right-subs/scripts/uninstall-termux.sh`): both would use port 7000.
+2. Open **RightSubs** and fill in the credentials. Easiest: tap **Fill in on your phone**, point the phone's camera (on the same Wi-Fi) at the QR code and fill in or paste the values in the browser. The Google TV app keyboard (remote › keyboard) works too. **Without Real-Debrid, leave the token blank:** torrents played by Stremio itself are found too (real fps; without the embedded subtitle as reference).
+3. Install the addon in Stremio. **On a TV:** in Stremio, open **Addons › Add addon** and type `http://127.0.0.1:7000/manifest.json` (with `http`, not `https`; the **Install in Stremio** button shows this reminder). The remote cannot paste: to avoid typing letter by letter, use the **Google TV** app keyboard on your phone (remote › keyboard), which can paste. **On a phone:** the button opens Stremio Web in the browser with the addon ready to install. A `stremio://` link does not work, because Stremio turns `stremio://` into `https://` and the addon only answers on `http` (checked on an NVIDIA Shield, Stremio 1.12.0). Nothing needs uninstalling: Torrentio/Sootio and the subtitle addons (OpenSubtitles v3 etc.) stay installed, and RightSubs' track shows up next to theirs. On other devices of the same Stremio account, RightSubs (which only exists on this device) does not answer and the other addons keep working.
+4. Under **Subtitle languages**, pick the primary and the secondary, which are the subtitles you watch (default: Brazilian and European Portuguese), and the **reference for syncing** (default: English). The reference never shows on screen: subtitles in that language made for the exact file help get the timing right, and the embedded track in that language is preferred. The change applies at once (the addon restarts). In Stremio, set the subtitle language to the primary, so it picks RightSubs' track by itself.
+
+The service starts by itself when the box turns on and after every app update. The "Addon running" notification is what keeps Android from stopping it.
+
+### Updating
+
+Install the new APK over the old one (from the same place: releases install over releases). The credentials stay.
+
+## Credentials security
+
+- **Storage:** OpenSubtitles API key, username and password, Real-Debrid token and DeepL key (the last two optional) are encrypted with AES-256-GCM. The key is generated inside the **Android Keystore** (in hardware when the device has it; StrongBox when it exists) and cannot be exported: the encrypted file is useless off this device. Each field is bound to its name (AAD), so one cannot be swapped for another.
+- **Nothing in plain text on disk:** there is no `.env`. The generated `config.yaml` keeps the `${VAR}` placeholders and the values reach Node only as environment variables of the process (on Android, only the app itself sees them). They never go on the command line.
+- **No backup:** `allowBackup=false` and empty extraction rules: nothing goes to the cloud backup or to device-to-device transfer.
+- **Screen:** `FLAG_SECURE` (no screenshot, recording, casting or thumbnail in recents); fields with hidden text, no keyboard suggestions or learning (`flagNoPersonalizedLearning`), no autofill (other apps do not get the values) and no saving of the content in the screen's saved state. Once saved, the values **never show again**: editing only replaces (a blank field keeps the current one). "Delete credentials" deletes the encrypted data and the Keystore key itself.
+- **Log:** every Node line goes through a filter that replaces any credential (URL-encoded too) with `***` before it reaches the file or the screen.
+- **Fill in on your phone:** the button opens, only while the screen is open, a form on the home network (`http://<TV IP>:7001`), with a QR code and a 6-digit code shown only on the TV. It closes after one accepted submission, after 10 minutes, after 5 wrong codes or when leaving the screen. The submission has **no encryption of its own**, protected only by the Wi-Fi password: prefer a trusted network.
+- **Network:** the addon only listens on `127.0.0.1` (only apps on the device itself, like Stremio, reach it). The app itself only speaks HTTP to `127.0.0.1`; everything else needs HTTPS with system CAs. ffmpeg was patched to **verify the certificate and the server name** (ffmpeg's default is not to verify; see [patches/ffmpeg-tls-verify.patch](patches/ffmpeg-tls-verify.patch)).
+- **Components:** only the main screen is exported; the service is not; the boot receiver only reacts to system broadcasts.
+- **Build:** the RightSubs bundle comes from `git archive` of `rightsubs/` at the last commit, so the `.env` and `config.yaml` on your computer never get in; the script checks that too. `npm ci --ignore-scripts` (nothing from the registry runs during the build). The Termux `.deb` files are checked against the SHA-256 in the repository index; ffmpeg, the Android SDK and Gradle against a fixed or published hash.
+
+## How the subtitle is chosen and synced
+
+**First of all, RightSubs looks at the file itself.** If the video already has a subtitle track in your primary language (or, then, the secondary), it searches and downloads nothing, does not read the video and does not use DeepL: it offers only an entry in the subtitle menu saying the video already has an embedded subtitle in your language. Pick the file's own track in the menu. ("Forced" tracks do not count, and neither do tracks only in other languages.) This saves Real-Debrid bandwidth and the OpenSubtitles and DeepL quotas.
+
+Without such a track in the file, RightSubs offers Stremio **one** track in the primary language (with no subtitle at all in it, in the secondary). To choose, it compares each subtitle with the file that is playing: hash, release name, **edition** (DC, Extended, Uncut, Unrated, Theatrical, IMAX), group, source (BluRay/WEB/HDTV/DVD), resolution and fps.
+
+If the subtitle was made for another release, it fixes the timing (offset and fps) against a reference. It stops at the first option that exists:
+
+| # | Reference | In the log (`subtitles.served`) |
+|---|---|---|
+| 1 | an OpenSubtitles subtitle made for **this file**, in any language searched; one from another edition does not count | `synced` / `already_synced` |
+| 2 | none: the subtitle is from the same edition, source and resolution, so it probably already matches; the video is not read | `likely_synced` |
+| 3 | the subtitle **embedded** in the file (text, preferring the reference language), read in 3 windows of 45 s; the time limit grows with the file size | `synced` / `already_synced` |
+| 4 | a subtitle from **another release of the same edition**, source and resolution | `synced` (`referenceMatch: same_edit`) |
+| 5 | none: fixes only the fps, from the file's real value | `fps_corrected` / `no_reference` |
+
+**Text cleanup:** every subtitle served, from any source, goes through a cleanup that removes musical notes (♪ ♫ ♬… and the corrupted form `â™ª`), invalid or invisible characters, `#` used as a music mark and leftover ASS codes (`{\an8}`, `\N`). Without it, the TV draws little boxes in songs.
+
+The file that is playing is found through Real-Debrid. In a torrent without Real-Debrid, it is found through Stremio's local server: then only the fps is read, without the embedded track, because reading windows of the torrent takes bandwidth from the video.
+
+**Known limitations:**
+- With no text reference at all, the subtitle goes out as downloaded (`no_reference`). That holds even if the fps reported by OpenSubtitles is wrong or the edition has another name (e.g. "Extended" = "DC"). Only syncing by audio, not done yet, would fix it.
+- The secondary only comes in when there is **no subtitle at all** in the primary; an out-of-sync primary subtitle does not switch to the secondary.
+
+### No subtitle in your languages: DeepL translation (optional)
+
+With a DeepL key, if there is no subtitle in the primary or the secondary language, RightSubs translates an OpenSubtitles subtitle in **any language** into the primary. It only translates a subtitle whose timing the file's embedded track confirms (it reads 6 short windows, never the whole movie): subtitles made for another cut of the movie, even in English, are refused. The translation says "[Subtitles machine-translated by AI (DeepL)]" (in your language) and uses your Stremio's subtitle style.
+
+**What depends on Real-Debrid:** not the translation itself, but **checking the subtitle's timing** does, because RightSubs needs to read a few windows of the video and only gets the file's link through Real-Debrid.
+
+| How you watch | Timing check | What the translation does |
+|---|---|---|
+| **Real-Debrid** | yes | full: picks the right subtitle among the languages and fixes the timing |
+| **Torrent through Stremio itself** (no debrid) | no | exact subtitle by hash: translated as it is; **movie**: translated with "timing not confirmed"; **series**: nothing |
+| **Another debrid** (AllDebrid, Premiumize, TorBox…) or a direct link | no | only the exact subtitle by hash |
+
+Only the Real-Debrid case was really tested; the others are what the code does.
+
+**Movies without an embedded subtitle to check the timing** are translated too, as long as the subtitle's fps is the file's, but the subtitle says "timing not confirmed" and may come early or late. Series (episodes have cuts and ads) are not.
+
+**The first time for a movie or episode** the translation takes 20 to 60 s, longer than the 10 s Stremio waits. The video opens with a provisional subtitle asking you to **leave and open it again in about 30 s**; the translation finishes in the background and, from the second time on, comes out at once.
+
+Real measured cases and the reason behind each rule: [rightsubs/docs/FINDINGS.md](rightsubs/docs/FINDINGS.md); every option: [rightsubs/docs/CONFIGURATION.md](rightsubs/docs/CONFIGURATION.md); the DeepL translation in detail: [rightsubs/docs/DEEPL-TRANSLATION.md](rightsubs/docs/DEEPL-TRANSLATION.md).
+
+## Limitations
+
+- The translation's **timing check** only exists with Real-Debrid; with Stremio torrents or other debrids the translation is more limited (table above).
+- The DeepL translation uses the free quota (~21,000 characters per episode, out of 500,000 a month), only translates a series with an embedded text track to check the timing (a movie without one is translated with "timing not confirmed") and, the first time for each episode, asks you to open the video again.
+- The screen sets only the credentials and the languages; the other options (time limits, cache, syncing) use the defaults in `rightsubs/config.example.yaml`. RightSubs only serves subtitles: the videos keep coming from the stream addons installed in Stremio (Torrentio, Sootio…).
+- ffmpeg has only what the current RightSubs needs. Syncing by audio (not done yet) will need audio decoders in [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh).
+- Node comes from the Termux repository, which only keeps the latest version: each build takes the current one (`BUILD-INFO.txt` records which).
+
+## Development
+
+### Building the APK
+
+Requirements: **Docker** (running) and Git. Everything else (JDK, Android SDK, NDK, Gradle, Node) lives inside the container.
+
+```sh
+sh build.sh                                   # macOS/Linux (and Git Bash)
+RUN_TESTS=1 sh build.sh                       # also runs the addon tests (the app tests always run)
+```
 
 ```powershell
 .\build.ps1                                   # Windows
-.\build.ps1 -Test                             # também roda os testes do addon (os do app rodam sempre)
+.\build.ps1 -Test
 ```
+
+The first time takes a while (it downloads ~3 GB and builds ffmpeg); afterwards it is fast. Output in `out/`: the three APKs above, `SHA256SUMS.txt` and `BUILD-INFO.txt` (APK and addon version, commit used, Node and ffmpeg versions). For an x86_64 emulator: `ABIS=x86_64 sh build.sh`.
+
+**Commit before building:** only the last commit of `rightsubs/` goes in (the script warns about pending changes).
+
+**Signing:** a local build signs with a key created in `signing/` (outside git) on the first build. It is not the organization's key, so a local APK does not install over a release (and vice versa) without uninstalling. APKs for users come only from [releases](#releases).
+
+**Barriers:** every build that is not a test build checks that the APK carries no credential from your `.env` (and deletes the APKs if it does), and a commit hook (`git config core.hooksPath scripts/git-hooks`) keeps credentials, keys and APKs out of git. Test APKs come with an `out/DO-NOT-DISTRIBUTE.txt` warning.
+
+**Testing only (never distribute):** `DEBUG_LOG=1` (`-DebugLog`) builds `*-debuglog.apk`, which writes a copy of the log (already without secrets) to `/sdcard/Android/data/com.rightsubs.android/files/`, readable by adb (the log shows the movies the person watches). `PREFILL=1` (`-Prefill`) builds `*-prefill.apk` with the `.env` credentials **in plain text** inside the APK, stored on first launch (on a box that already has credentials, `pm clear` first). `WORKING_TREE=1` (`-WorkingTree`) packs the addon with the still uncommitted changes in `rightsubs/`. They combine: `WORKING_TREE=1 PREFILL=1 DEBUG_LOG=1 sh build.sh`.
+
+### Tests
+
+**CI** runs the unit tests on every pull request and push to `main` ([.github/workflows/ci.yml](.github/workflows/ci.yml)). Locally:
 
 ```sh
-sh build.sh                                   # Mac/Linux
+sh test.sh                  # addon (typecheck + node:test) and app (JUnit); ONLY=addon or ONLY=app for one
 ```
-
-A primeira vez demora (baixa ~3 GB e compila o ffmpeg); depois é rápido. Saída em `out/`:
-
-| Arquivo | Para |
-|---|---|
-| `rightsubs-<versão>-armeabi-v7a.apk` | Chromecast com Google TV e outras boxes de 32 bits |
-| `rightsubs-<versão>-arm64-v8a.apk` | Shield TV, celulares recentes |
-| `rightsubs-<versão>-universal.apk` | qualquer um dos dois (maior) |
-| `SHA256SUMS.txt` | hashes, para conferir o download |
-| `BUILD-INFO.txt` | versão do APK e do addon, commit usado, versões do Node e do ffmpeg |
-
-Para um emulador x86_64: `.\build.ps1 -Abis x86_64`.
-
-**Commit antes de gerar:** só o último commit de `rightsubs/` entra (o script avisa se houver alterações pendentes).
-
-**Barreiras:** todo build que não é de teste confere que o APK não carrega nenhuma credencial do seu `.env` (e apaga os APKs se carregar), e um hook de commit (`git config core.hooksPath scripts/git-hooks`) impede que credenciais, chaves e APKs entrem no git. Os APKs de teste vêm com o aviso `out/NAO-DISTRIBUIR.txt`.
-
-**Só para testes (nunca distribuir):** `.\build.ps1 -DebugLog` gera `*-debuglog.apk`, que grava uma cópia do log (já sem segredos) em `/sdcard/Android/data/com.rightsubs.android/files/`, legível por adb (o log mostra os filmes que a pessoa assiste). `-Prefill` gera `*-prefill.apk` com as credenciais do `.env` **em texto puro** dentro do APK, gravadas na primeira abertura (numa box que já tem credenciais, `pm clear` antes). `-WorkingTree` empacota o addon com as alterações ainda não commitadas de `rightsubs/`. Eles se combinam: `.\build.ps1 -WorkingTree -Prefill -DebugLog`.
-
-### Chave de assinatura
-
-No primeiro build é criada uma chave em `signing/` (fora do git). **Faça backup dela**: o Android só aceita atualizar o app com um APK assinado pela mesma chave; sem ela, cada amigo precisaria desinstalar (e digitar as credenciais de novo).
-
-## Testes
-
-### Instalação (uma vez)
-
-Só **Docker** e **Git** no computador; Node, JDK, Android SDK/NDK e Gradle ficam dentro do container. Escolha o seu sistema:
-
-**Windows 10/11**
-1. [Docker Desktop](https://www.docker.com/products/docker-desktop/) com o backend **WSL 2**; abra-o e deixe-o rodando.
-2. [Git for Windows](https://git-scm.com/download/win) (traz o Git Bash, que o `scripts/adb.sh` usa).
-3. O PowerShell 5.1 que já vem no Windows basta. Comandos: `.\test.ps1`, `.\build.ps1`.
-
-**macOS**
-1. [Docker Desktop para Mac](https://www.docker.com/products/docker-desktop/) (ou outro Docker compatível, como Colima ou OrbStack); abra-o.
-2. Git: `xcode-select --install` ou `brew install git`.
-3. Comandos: `sh test.sh`, `sh build.sh`.
-4. **Mac com chip Apple (M1…)**: o ambiente de build usa ferramentas do Android compiladas para x86_64, então rode com `export DOCKER_DEFAULT_PLATFORM=linux/amd64` (no Docker Desktop, ative "Use Rosetta for x86_64/amd64 emulation"). Funciona por emulação, **mais lento, e não foi testado** por nós.
-
-**Linux (Debian/Ubuntu, Fedora…)**
-1. Docker Engine ([docs.docker.com/engine/install](https://docs.docker.com/engine/install/)) e, para não usar `sudo` toda hora, `sudo usermod -aG docker $USER` e sair/entrar na sessão. Confira com `docker info`.
-2. Git: `sudo apt install git` (Debian/Ubuntu) ou `sudo dnf install git` (Fedora).
-3. Comandos: `sh test.sh`, `sh build.sh`.
-4. Fedora/RHEL com SELinux: se o container não conseguir ler a pasta, acrescente `:z` ao volume `-v …:/work` dos scripts. PC ARM (Raspberry Pi etc.): mesma observação do Mac com chip Apple.
-5. O container roda como root: `build.sh` deixa `build/` e `out/` com dono root (o `test.sh` não grava nada no repositório). Para apagá-los: `sudo rm -rf build out`.
-
-Os `.sh` usam só `sh` (POSIX) e funcionam também no Git Bash do Windows. No Windows o fluxo oficial é o `.ps1`.
-
-Espaço e tempo: pelo menos 10 GB livres para a imagem (≈6 GB) e os volumes do Docker; a **primeira** execução baixa ~3 GB (Android SDK, NDK, Gradle) e leva alguns minutos; depois a imagem fica em cache. Precisa de internet na primeira vez (e o Gradle baixa as Build-Tools 34 a cada execução, porque o container é descartável).
-
-Não precisa de credenciais nem de aparelho para os testes automatizados. O `.env` (`cp rightsubs/.env.example .env` na raiz; no Windows, `Copy-Item rightsubs\.env.example .env`) só é lido por `-Prefill`, e só os testes na box usam o resultado.
-
-### Testes automatizados (sem APK, ~30 s com a imagem pronta)
 
 ```powershell
-.\test.ps1                  # addon (typecheck + node:test) e app (JUnit)
-.\test.ps1 -Only addon      # só o addon
-.\test.ps1 -Only app        # só o app
+.\test.ps1                  # Windows; -Only addon / -Only app
 ```
 
-```sh
-sh test.sh                  # macOS/Linux (também no Git Bash); ONLY=addon ou ONLY=app para um só
-```
+They test `rightsubs/` and `android/` **as they are on disk** (no need to commit) and write nothing to the repository. Expected at the end: `ℹ fail 0`, `App: N tests, 0 failures` and `ALL TESTS PASSED`; exit code 0. The addon alone also runs without Docker, with Node ≥ 22.18: `cd rightsubs && npm ci && npx tsc && npm test`.
 
-Testam `rightsubs/` e `android/` **como estão no disco** (não precisa commitar) e não gravam nada no repositório. Saída esperada no fim: `ℹ pass 219`, `App: 36 testes, 0 falhas` e `TODOS OS TESTES PASSARAM`; o código de saída é 0. Os números crescem com o código: o que importa é `fail 0`.
-
-| Camada | Onde | O que cobre |
+| Layer | Where | What it covers |
 |---|---|---|
-| Addon | `rightsubs/test/*.test.ts` | escolha e sincronização de legendas, fontes, cache, tradução DeepL, config |
-| App | `android/app/src/test/` | `ConfigWriter` com o template **real** do addon, lista de idiomas × `languages.ts` do addon, `Redactor`, formulário pelo celular, QR, validação de credenciais |
+| Addon | `rightsubs/test/*.test.ts` | subtitle choice and syncing, sources, cache, DeepL translation, config, viewer messages in every language |
+| App | `android/app/src/test/` | `ConfigWriter` with the addon's **real** template, language list × the addon's `languages.ts`, English × Portuguese strings, `Redactor`, phone form, QR code, credentials validation |
 
-O `build.ps1` também roda os testes do app em todo build (`-Test` acrescenta os do addon), mas aí cada execução gera o APK: demora bem mais.
+Setup (once), per system:
 
-### O que os testes automatizados **não** cobrem
+- **Windows 10/11:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) with the **WSL 2** backend, running; [Git for Windows](https://git-scm.com/download/win) (brings Git Bash, used by `scripts/adb.sh`). PowerShell 5.1 is enough.
+- **macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Colima/OrbStack), running; Git with `xcode-select --install` or `brew install git`. **Apple chip:** the build uses Android tools compiled for x86_64, so run with `export DOCKER_DEFAULT_PLATFORM=linux/amd64` (Docker Desktop: "Use Rosetta for x86_64/amd64 emulation"); it works through emulation, **slower and not tested** by us.
+- **Linux:** Docker Engine ([docs.docker.com/engine/install](https://docs.docker.com/engine/install/)), `sudo usermod -aG docker $USER` and a new session; `sudo apt install git` / `sudo dnf install git`. Fedora/RHEL with SELinux: add `:z` to the scripts' `-v …:/work` volume. The container runs as root: `build.sh` leaves `build/` and `out/` owned by root (`sudo rm -rf build out`).
 
-Só se verificam num aparelho (box ou celular, ver abaixo): `AddonService` e a supervisão do Node (códigos 75 e 78), `BootReceiver`, o `SecretStore` com o Keystore, a instalação e o ffmpeg/Node reais, e o comportamento do Stremio e dos players. A **conferência do tempo da tradução só foi validada com Real-Debrid**.
+Disk and time: at least 10 GB free for the image (≈6 GB) and the Docker volumes; the **first** run downloads ~3 GB (Android SDK, NDK, Gradle). No credentials or device are needed for the automated tests. The `.env` (`cp rightsubs/.env.example .env` at the root) is only read by `PREFILL`, and only the box tests use it.
 
-### Testes na box ou no celular
+**Not covered by the automated tests** (only on a device): `AddonService` and the Node supervision (exit codes 75 and 78), `BootReceiver`, `SecretStore` with the Keystore, the installation and the real ffmpeg/Node, the screens, and Stremio's and the players' behavior. The **translation timing check was only validated with Real-Debrid**.
 
-Opcional, exige um aparelho Android na mesma rede com **Depuração USB/rede** ligada (Opções do desenvolvedor) e as credenciais no `.env` (`OPENSUBTITLES_API_KEY`, `OPENSUBTITLES_USER`, `OPENSUBTITLES_PASSWORD`; opcionais `RD_TOKEN` e `DEEPL_API_KEY`). Fluxo:
-
-```powershell
-.\build.ps1 -WorkingTree -Prefill -DebugLog -Test                              # Windows: APK de teste, NUNCA distribua
-```
+**Tests on a box or phone** (optional): an Android device on the same network with **USB/network debugging** on (Developer options) and the credentials in `.env`.
 
 ```sh
-WORKING_TREE=1 PREFILL=1 DEBUG_LOG=1 RUN_TESTS=1 sh build.sh                   # Mac/Linux (ou Git Bash)
-```
-
-Depois, no Git Bash (Windows), Mac ou Linux (o adb roda dentro do container, nada a instalar):
-
-```sh
-export BOX=<IP do aparelho>
-sh scripts/adb.sh install -r /out/rightsubs-<versão>-armeabi-v7a-debuglog-prefill.apk   # arm64-v8a na Shield/celulares
-sh scripts/adb.sh shell pm clear com.rightsubs.android      # aplica as credenciais do .env
+WORKING_TREE=1 PREFILL=1 DEBUG_LOG=1 RUN_TESTS=1 sh build.sh              # test APK: NEVER distribute
+export BOX=<device IP>
+sh scripts/adb.sh install -r /out/rightsubs-armeabi-v7a-debuglog-prefill.apk   # arm64-v8a on Shield/phones
+sh scripts/adb.sh shell pm clear com.rightsubs.android      # applies the .env credentials
 sh scripts/adb.sh shell am start -n com.rightsubs.android/.MainActivity
 ```
 
-Na primeira vez a TV pede para autorizar o adb ("Sempre permitir"). O adb roda dentro do container, sem nada a instalar. Para ver o log e o `/health`, medir a extração e os filmes de referência (Drive, Halloween, Valkyrie, Enter the Void), veja [.claude/skills/box/SKILL.md](.claude/skills/box/SKILL.md) e [rightsubs/docs/DESCOBERTAS.md](rightsubs/docs/DESCOBERTAS.md). **Desligue a depuração ao terminar.** Antes de qualquer commit ou distribuição, siga a skill `release-check`.
+The first time the TV asks to authorize adb ("Always allow"). adb runs inside the container, nothing to install. To read the log and `/health`, time the extraction and check the reference movies (Drive, Halloween, Valkyrie, Enter the Void), see [.claude/skills/box/SKILL.md](.claude/skills/box/SKILL.md) and [rightsubs/docs/FINDINGS.md](rightsubs/docs/FINDINGS.md). **Turn debugging off when done.**
 
-## Instalar na TV
+### Releases
 
-**Antes, prepare** uma conta gratuita na OpenSubtitles (opensubtitles.com): perfil → **API consumers** → **New consumer** (nome `RightSubs`, marque **Allow anonymous downloads**) e anote a **API key**, o **nome de usuário** (não o e-mail: com e-mail o login é recusado) e a senha. Real-Debrid é opcional: token em real-debrid.com/apitoken. O DeepL também: uma chave gratuita em deepl.com (Conta › Chaves de API, termina em `:fx`; 500 mil caracteres por mês) permite traduzir uma legenda quando não existe nenhuma em português.
+The APK version lives in [VERSION](VERSION) (`X.Y.Z`) and what changed in each one in [CHANGELOG.md](CHANGELOG.md). The addon in `rightsubs/` gets the same version at build time (the one the app shows on its status line and Stremio in the manifest), and the build checks that the APK and the addon say the same number.
 
-1. **Se o RightSubs antigo, do Termux, estiver instalado na box, remova antes** (no Termux: `sh ~/right-subs/scripts/uninstall-termux.sh`): os dois usariam a porta 7000.
-2. Copie o APK para a TV: pelo app **Downloader** (servindo `out/` na rede, por exemplo `npx serve out`), por pendrive ou `adb install out/rightsubs-…-armeabi-v7a.apk`. Permita "instalar apps desconhecidos" para o app usado.
-3. Abra o **RightSubs** e preencha as credenciais. Mais fácil: toque em **Preencher pelo celular**, aponte a câmera do celular (na mesma rede Wi-Fi) para o QR e preencha ou cole os valores no navegador. Também dá para usar o teclado do app Google TV (controle remoto › teclado). **Sem Real-Debrid, deixe o token em branco:** torrents tocados pelo próprio Stremio também são achados (fps real; sem a legenda embutida como referência).
-4. Instale o addon no Stremio. **Na TV:** no Stremio, abra **Addons › Add addon** e digite `http://127.0.0.1:7000/manifest.json` (com `http`, não `https`; o botão **Instalar no Stremio** mostra esse lembrete). O controle não consegue colar: para não digitar letra por letra, use o teclado do app **Google TV** no celular (controle remoto › teclado), que aceita colar. **No celular:** o botão abre o Stremio Web no navegador com o addon pronto para instalar. Um link `stremio://` não serve, porque o Stremio troca `stremio://` por `https://` e o addon só responde em `http` (conferido na NVIDIA Shield, Stremio 1.12.0). Não é preciso desinstalar nada: Torrentio/Sootio e os addons de legenda (OpenSubtitles v3 etc.) continuam instalados, e a faixa do RightSubs aparece junto com as deles. Em outros aparelhos da mesma conta do Stremio, o RightSubs (que só existe neste aparelho) não responde e os outros addons seguem funcionando.
-5. Em **Idiomas da legenda**, escolha a principal e a secundária, que são as legendas que você assiste (padrão: Português do Brasil e de Portugal), e a **referência para sincronizar** (padrão: inglês). A referência nunca aparece na tela: legendas nesse idioma feitas para o arquivo exato servem para acertar o tempo, e a faixa embutida nesse idioma é a preferida. A troca vale na hora (o addon reinicia). No Stremio, deixe o idioma de legenda igual à principal, para ele escolher a faixa do RightSubs sozinho.
-
-O serviço inicia sozinho quando a box liga e depois de cada atualização do app. A notificação "Addon ativo" é o que impede o Android de encerrá-lo.
-
-## Como a legenda é escolhida e sincronizada
-
-**Antes de tudo, o RightSubs olha o próprio arquivo.** Se o vídeo já tem uma faixa de legenda no seu idioma principal (ou, depois, no secundário), ele não busca nem baixa nada, não lê o vídeo e não usa o DeepL: oferece só uma entrada no menu de legendas dizendo que o vídeo já tem legenda embutida no seu idioma. Escolha a faixa do próprio arquivo no menu. (Faixas "forçadas" não contam, e faixas só em outros idiomas também não.) Isso poupa banda do Real-Debrid, a cota do OpenSubtitles e a do DeepL.
-
-Sem essa faixa no arquivo, o RightSubs oferece ao Stremio **uma** faixa no idioma principal (sem nenhuma legenda nele, no secundário). Para escolher, compara cada legenda com o arquivo que está tocando: hash, nome do release, **edição** (DC, Extended, Uncut, Unrated, Theatrical, IMAX), grupo, origem (BluRay/WEB/HDTV/DVD), resolução e fps.
-
-Se a legenda foi feita para outro release, ele acerta o tempo (deslocamento e fps) contra uma referência. Para na primeira opção que existir:
-
-| # | Referência | No log (`subtitles.served`) |
+| Changed | Bump | Example |
 |---|---|---|
-| 1 | legenda do OpenSubtitles feita para **este arquivo**, em qualquer idioma buscado; a de outra edição não conta | `synced` / `already_synced` |
-| 2 | nenhuma: a legenda é da mesma edição, origem e resolução, então provavelmente já bate; o vídeo não é lido | `likely_synced` |
-| 3 | legenda **embutida** no arquivo (texto, preferindo o idioma de referência), lida em 3 trechos de 45 s; o prazo cresce com o tamanho do arquivo | `synced` / `already_synced` |
-| 4 | legenda de **outro release da mesma edição**, origem e resolução | `synced` (`referenceMatch: same_edit`) |
-| 5 | nenhuma: corrige só o fps, pelo valor real do arquivo | `fps_corrected` / `no_reference` |
+| fixes only | the last number | X.Y.Z → X.Y.(Z+1) |
+| new feature | the middle one (and the last to 0) | X.Y.Z → X.(Y+1).0 |
+| whoever updates must uninstall or type the credentials again | the first | X.Y.Z → (X+1).0.0 |
 
-**Limpeza do texto:** toda legenda entregue, de qualquer origem, passa por uma limpeza que remove notas musicais (♪ ♫ ♬… e a forma corrompida `â™ª`), caracteres inválidos ou invisíveis, `#` usado como marca de música e restos de códigos ASS (`{\an8}`, `\N`). Sem isso, a TV desenha quadradinhos nas músicas.
+While working, note each change under `[Unreleased]` in `CHANGELOG.md`. To release:
 
-O arquivo que está tocando é achado pelo Real-Debrid. Num torrent sem Real-Debrid, é achado pelo servidor local do Stremio: aí só o fps é lido, sem a embutida, porque ler trechos do torrent rouba banda do vídeo.
+1. Write the new number in `VERSION` (and `cd rightsubs && npm version X.Y.Z --no-git-tag-version --allow-same-version`). In `CHANGELOG.md`, rename `[Unreleased]` to `[X.Y.Z] — YYYY-MM-DD` and add an empty `[Unreleased]` above it.
+2. `git commit -m "Version X.Y.Z"` with those files.
+3. `git tag -a vX.Y.Z -m "RightSubs X.Y.Z"` and `git push origin main vX.Y.Z`.
 
-**Limitações conhecidas:**
-- Sem nenhuma referência em texto, a legenda sai como baixada (`no_reference`). Isso vale mesmo se o fps informado pelo OpenSubtitles estiver errado ou se a edição tiver outro nome (ex.: "Extended" = "DC"). Só a sincronização pelo áudio, ainda não feita, resolveria.
-- O secundário só entra quando **não existe nenhuma** legenda no principal; uma PT-BR fora de sincronia não troca para PT-PT.
+Pushing the tag runs [.github/workflows/release.yml](.github/workflows/release.yml): it checks that the tag matches `VERSION`, builds in the same container as local builds, signs with the organization's key, runs the addon tests and the secret checks, attests the build provenance and publishes the release with the APKs, `SHA256SUMS.txt`, `BUILD-INFO.txt` and the version's `CHANGELOG` section as notes. Before the push, a wrong tag is deleted with `git tag -d vX.Y.Z`; after it, do not move the tag: release the next version.
 
-### Sem legenda em português: tradução pelo DeepL (opcional)
+Android's internal `versionCode` is automatic: the minutes since 1970, so it always grows and any newer build installs over an older one.
 
-Com a chave do DeepL, se não existir nenhuma legenda em português (nem no secundário), o RightSubs traduz uma legenda de **qualquer idioma** do OpenSubtitles para o idioma principal. Ele só traduz uma legenda cujo tempo a faixa embutida no arquivo confirma (lê 6 trechos curtos, nunca o filme todo): legendas feitas para outro corte do filme, mesmo em inglês, são recusadas. A traduzida mostra "[Legenda traduzida por IA (DeepL)]" e usa o estilo de legenda do seu Stremio.
+#### Signing key (maintainers, once)
 
-**O que depende do Real-Debrid:** a tradução em si não, mas **conferir o tempo da legenda** sim, porque o RightSubs precisa ler alguns trechos do vídeo e só consegue o link do arquivo pelo Real-Debrid.
+Releases are signed with the organization's key, kept in the repository secrets. Android only updates an app with an APK signed by the same key: **losing it means everyone has to uninstall** (and type the credentials again), so keep an offline backup of the keystore and its password.
 
-| Como você assiste | Conferência do tempo | O que a tradução faz |
-|---|---|---|
-| **Real-Debrid** | sim | completa: escolhe a legenda certa entre os idiomas e acerta o tempo |
-| **Torrent pelo próprio Stremio** (sem debrid) | não | legenda exata pelo hash: traduzida como está; **filme**: traduzido com "tempo não confirmado"; **série**: nada |
-| **Outro debrid** (AllDebrid, Premiumize, TorBox…) ou link direto | não | só a legenda exata pelo hash |
+Create it (the builder image has the JDK, so nothing to install):
 
-Só o caso do Real-Debrid foi testado de verdade; os outros são o que o código faz.
+```sh
+docker run --rm -it -v "$PWD:/k" -w /k rightsubs-apk-builder \
+  keytool -genkeypair -keystore rightsubs-release.p12 -storetype PKCS12 -alias rightsubs \
+  -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=RightSubs"
+```
 
-**Filmes sem legenda embutida para conferir o tempo** também são traduzidos, desde que o fps da legenda seja o do arquivo, mas a legenda mostra "tempo não confirmado" e pode sair adiantada ou atrasada. Séries (episódios têm cortes e anúncios) não.
+Then, in the repository, **Settings › Secrets and variables › Actions** (or with `gh secret set … --repo RightSubs/right-subs`):
 
-**Na primeira vez de um filme ou episódio** a tradução leva de 20 a 60 s, mais do que os 10 s que o Stremio espera. O vídeo abre com uma legenda provisória pedindo para **sair e abrir de novo em cerca de 30 s**; a tradução termina em segundo plano e, da segunda vez em diante, sai na hora.
-
-Casos reais medidos e o porquê de cada regra: [rightsubs/docs/DESCOBERTAS.md](rightsubs/docs/DESCOBERTAS.md); todas as opções: [rightsubs/docs/CONFIGURACAO.md](rightsubs/docs/CONFIGURACAO.md); a tradução pelo DeepL em detalhe: [rightsubs/docs/TRADUCAO-DEEPL.md](rightsubs/docs/TRADUCAO-DEEPL.md).
-
-## Atualizar
-
-Instale o APK novo por cima do antigo. As credenciais continuam (mesma chave de assinatura).
-
-## Versões
-
-A versão do APK fica no arquivo [VERSION](VERSION) (`X.Y.Z`) e o que mudou em cada uma no [CHANGELOG.md](CHANGELOG.md). Cada versão é um commit "Versão X.Y.Z" com a tag `vX.Y.Z`. O addon em `rightsubs/` recebe a mesma versão no build (é a que o app mostra na linha de status e o Stremio no manifesto), e o build confere que o APK e o addon dizem o mesmo número.
-
-| Mudou | Sobe | Exemplo |
-|---|---|---|
-| só correções | o último número | X.Y.Z → X.Y.(Z+1) |
-| funcionalidade nova | o do meio (e zera o último) | X.Y.Z → X.(Y+1).0 |
-| quem atualiza precisa desinstalar ou digitar as credenciais de novo | o primeiro | X.Y.Z → (X+1).0.0 |
-
-Durante o trabalho, anote cada mudança em `[Não lançado]` no `CHANGELOG.md`. Para lançar:
-
-1. **Atualize a versão:** escreva o número novo no `VERSION`. No `CHANGELOG.md`, renomeie `[Não lançado]` para `[X.Y.Z] — AAAA-MM-DD` e crie um `[Não lançado]` vazio acima.
-2. **Commite:**
-   ```powershell
-   git add VERSION CHANGELOG.md        # e o resto que fizer parte da versão
-   git commit -m "Versão X.Y.Z"
-   ```
-3. **Gere o APK:** `.\build.ps1 -Test`. Confira o `out\BUILD-INFO.txt`: a versão certa e o commit sem `+alterações` (se tiver, falta commitar algo).
-4. **Crie a tag:**
-   ```powershell
-   git tag -a vX.Y.Z -m "RightSubs APK X.Y.Z"
-   git push origin main vX.Y.Z
-   ```
-5. **Distribua:** os APKs, o `SHA256SUMS.txt` e o `BUILD-INFO.txt` de `out\`.
-
-Comandos úteis:
-
-| Para | Comando |
+| Secret | Value |
 |---|---|
-| ver as versões | `git tag -n` |
-| ver o que mudou entre duas versões | `git log vA.B.C..vX.Y.Z --oneline` |
-| gerar uma versão antiga de novo | `git switch --detach vX.Y.Z`, depois `.\build.ps1` (o Node vem do Termux atual, então pode sair mais novo) |
-| corrigir só uma versão antiga | `git switch -c correcao-X.Y.Z+1 vX.Y.Z`, depois os passos acima com o número seguinte |
+| `SIGNING_KEYSTORE_BASE64` | `base64 < rightsubs-release.p12 \| tr -d '\n'` |
+| `SIGNING_KEYSTORE_PASSWORD` | the password typed in keytool (PKCS12 uses it for the key too) |
+| `SIGNING_KEY_ALIAS` | `rightsubs` |
 
-Antes do push, uma tag errada se apaga com `git tag -d vX.Y.Z`. Depois do push, não mova a tag: lance a versão seguinte.
+Then move `rightsubs-release.p12` out of the repository folder, to the backup (git ignores `*.p12`, and the commit hook refuses one). The release job runs in the `release` environment: under **Settings › Environments › release** you can require an approval before each release and keep the secrets there instead.
 
-O `versionCode` interno do Android é automático: são os minutos desde 1970, então sempre cresce e qualquer build novo instala por cima do anterior.
+## Layout
 
-## Limitações
-
-- A **conferência do tempo** da tradução só existe com Real-Debrid; em torrent do Stremio ou em outros debrids a tradução é mais limitada (tabela em "Sem legenda em português").
-- A tradução pelo DeepL usa a cota gratuita (~21 mil caracteres por episódio, de 500 mil por mês), só traduz uma série com faixa embutida em texto para conferir o tempo (um filme sem ela é traduzido com "tempo não confirmado") e, na primeira vez de cada episódio, pede para abrir o vídeo de novo.
-- A tela configura só as credenciais e os idiomas; as demais opções (prazos, cache, sincronização) usam os padrões de `rightsubs/config.example.yaml`. O RightSubs só entrega legendas: os vídeos continuam vindo dos addons de streams instalados no Stremio (Torrentio, Sootio…).
-- O ffmpeg tem só o necessário para o RightSubs atual. A sincronização pelo áudio (ainda não feita) vai precisar de decodificadores de áudio em [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh).
-- Node vem do repositório do Termux, que só mantém a versão mais recente: cada build pega a atual (o `out/BUILD-INFO.txt` registra qual).
-
-## Estrutura
-
-| Caminho | Conteúdo |
+| Path | Contents |
 |---|---|
-| [build.ps1](build.ps1), [build.sh](build.sh) | ponto de entrada no computador (Docker) |
-| [test.ps1](test.ps1), [test.sh](test.sh) | só os testes unitários (addon + app), sem gerar o APK |
-| [docker/Dockerfile](docker/Dockerfile) | ambiente de build e de testes |
-| [scripts/container-build.sh](scripts/container-build.sh), [scripts/container-test.sh](scripts/container-test.sh) | etapas dentro do container (build / testes) |
-| [scripts/termux-node.mjs](scripts/termux-node.mjs) | Node e bibliotecas do Termux → `jniLibs` |
-| [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh) | ffmpeg mínimo com o NDK |
-| [scripts/build-payload.sh](scripts/build-payload.sh) | build do RightSubs → `rightsubs.zip` |
-| [android/](android) | app Android |
-| [scripts/adb.sh](scripts/adb.sh) | adb na box pela rede, de dentro do container (`BOX=<ip> sh scripts/adb.sh …`) |
-| [scripts/box/extract-timing.sh](scripts/box/extract-timing.sh) | mede na box a extração de legenda embutida (diagnóstico) |
-| [rightsubs/](rightsubs/) | o addon (cópia própria do right-subs, que evolui aqui; instruções dele em [rightsubs/CLAUDE.md](rightsubs/CLAUDE.md)) |
-| [VERSION](VERSION), [CHANGELOG.md](CHANGELOG.md) | versão do APK e o que mudou em cada uma |
-| [.claude/skills/](.claude/skills) | procedimentos para o Claude: `testes`, `build-apk`, `box`, `release-check`, `new-version` |
+| [build.sh](build.sh), [build.ps1](build.ps1) | entry point on the computer (Docker) |
+| [test.sh](test.sh), [test.ps1](test.ps1) | unit tests only (addon + app), without building the APK |
+| [.github/workflows/](.github/workflows) | CI (tests) and releases |
+| [docker/Dockerfile](docker/Dockerfile) | build and test environment |
+| [scripts/container-build.sh](scripts/container-build.sh), [scripts/container-test.sh](scripts/container-test.sh) | steps inside the container (build / tests) |
+| [scripts/termux-node.mjs](scripts/termux-node.mjs) | Node and libraries from Termux → `jniLibs` |
+| [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh) | minimal ffmpeg with the NDK |
+| [scripts/build-payload.sh](scripts/build-payload.sh) | RightSubs build → `rightsubs.zip` |
+| [scripts/release-notes.sh](scripts/release-notes.sh) | a version's `CHANGELOG` section (release notes) |
+| [android/](android) | Android app |
+| [scripts/adb.sh](scripts/adb.sh) | adb to the box over the network, from inside the container (`BOX=<ip> sh scripts/adb.sh …`) |
+| [scripts/box/extract-timing.sh](scripts/box/extract-timing.sh) | times the embedded subtitle extraction on the box (diagnostics) |
+| [rightsubs/](rightsubs/) | the addon ([rightsubs/README.md](rightsubs/README.md), [rightsubs/CLAUDE.md](rightsubs/CLAUDE.md)) |
+| [VERSION](VERSION), [CHANGELOG.md](CHANGELOG.md) | APK version and what changed in each one |
+| [.claude/skills/](.claude/skills) | procedures for Claude Code: `tests`, `build-apk`, `box`, `release-check`, `new-version` |
 
-## Créditos e licenças
+## Credits and licenses
 
-- **Fonte:** o app usa a [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) (Tokotype), licença **SIL Open Font License 1.1**, que permite embutir e redistribuir. O arquivo é o mesmo que o Stremio usa no app web (`android/app/src/main/res/font/plus_jakarta_sans.ttf`).
-- **Cores:** o visual segue a paleta pública do app web do Stremio. O RightSubs é um projeto independente, **sem vínculo com o Stremio**.
+- **Font:** the app uses [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) (Tokotype), under the **SIL Open Font License 1.1**, which allows embedding and redistribution. The file is the same one Stremio uses in its web app (`android/app/src/main/res/font/plus_jakarta_sans.ttf`).
+- **Colors:** the look follows the public palette of Stremio's web app. RightSubs is an independent project, **not affiliated with Stremio**.

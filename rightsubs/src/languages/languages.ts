@@ -11,7 +11,7 @@ export interface Language {
 }
 
 // The stremio/opensubtitles codes follow OpenSubtitles conventions; `pob`/`por`/`eng`
-// were confirmed in the official OpenSubtitles v3 addon responses (docs/DESCOBERTAS.md).
+// were confirmed in the official OpenSubtitles v3 addon responses (docs/FINDINGS.md).
 export const LANGUAGES: readonly Language[] = [
   { tag: 'pt-BR', name: 'Português (Brasil)', stremio: 'pob', opensubtitles: 'pt-br', aliases: ['pob', 'ptbr', 'brazilian'] },
   { tag: 'pt-PT', name: 'Português (Portugal)', stremio: 'por', opensubtitles: 'pt-pt', aliases: ['por'] },

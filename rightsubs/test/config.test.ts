@@ -36,7 +36,7 @@ test('reference languages: English by default, any known list, none allowed', ()
   const yaml = (list: string) => `${MINIMAL_YAML}\nsync:\n  referenceLanguages: ${list}\n`;
   assert.deepEqual(loadConfig({ configFile: writeConfig(yaml('[es, fr]')), env: {} }).sync.referenceLanguages.map((lang) => lang.tag), ['es', 'fr']);
   assert.deepEqual(loadConfig({ configFile: writeConfig(yaml('[]')), env: {} }).sync.referenceLanguages, []);
-  assert.match(issuesOf(() => loadConfig({ configFile: writeConfig(yaml('[xx]')), env: {} }))[0] ?? '', /sync\.referenceLanguages\.0: idioma "xx" desconhecido/);
+  assert.match(issuesOf(() => loadConfig({ configFile: writeConfig(yaml('[xx]')), env: {} }))[0] ?? '', /sync\.referenceLanguages\.0: unknown language "xx"/);
 });
 
 test('applies defaults for omitted sections', () => {
@@ -59,7 +59,7 @@ test('reads secrets from the .env next to config.yaml, process env wins', () => 
 test('points at the missing .env variable', () => {
   const issues = issuesOf(() => loadConfig({ configFile: writeConfig(), env: {} }));
   assert.deepEqual(issues, [
-    'providers[opensubtitles-api].apiKey: obrigatório (variável OPENSUBTITLES_API_KEY não definida no .env)',
+    'providers[opensubtitles-api].apiKey: required (variable OPENSUBTITLES_API_KEY is not defined in .env)',
   ]);
 });
 
@@ -77,20 +77,20 @@ test('skips option validation for disabled providers', () => {
 test('rejects unknown languages with examples', () => {
   const issues = issuesOf(() => loadConfig({ configFile: writeConfig(MINIMAL_YAML.replace('pt-BR', 'pt-BRR')), env: {} }));
   assert.equal(issues.length, 1);
-  assert.match(issues[0] ?? '', /^languages\.primary: idioma "pt-BRR" desconhecido — exemplos válidos: pt-BR/);
+  assert.match(issues[0] ?? '', /^languages\.primary: unknown language "pt-BRR" — valid examples: pt-BR/);
 });
 
 test('rejects a secondary language equal to the primary', () => {
   const yaml = MINIMAL_YAML.replace('primary: pt-BR', 'primary: pt-BR\n  secondary: pob');
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'languages.secondary: deve ser diferente do idioma principal',
+    'languages.secondary: must differ from the primary language',
   ]);
 });
 
 test('catches typos in option names', () => {
   const yaml = `${MINIMAL_YAML}server:\n  prot: 8000\n`;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'server: opção desconhecida: prot (erro de digitação?)',
+    'server: unknown option: prot (typo?)',
   ]);
 });
 
@@ -98,14 +98,14 @@ test('rejects unknown provider types and lists the available ones', () => {
   const yaml = MINIMAL_YAML.replace('type: stremio-addon', 'type: legendas-tv');
   const issues = issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} }));
   assert.deepEqual(issues, [
-    'providers[os-v3].type: tipo "legendas-tv" desconhecido — tipos disponíveis: opensubtitles-api, stremio-addon',
+    'providers[os-v3].type: unknown type "legendas-tv" — available types: opensubtitles-api, stremio-addon',
   ]);
 });
 
 test('validates stremio-addon URLs', () => {
   const yaml = MINIMAL_YAML.replace('/manifest.json', '/');
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'providers[os-v3].url: deve ser a URL do manifest.json do addon',
+    'providers[os-v3].url: must be the URL of the addon\'s manifest.json',
   ]);
 });
 
@@ -117,7 +117,7 @@ test('rejects downloadVia pointing to an unknown provider', () => {
     downloadVia: nope
 `;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'providers[os-api].downloadVia: provedor "nope" não existe ou está desabilitado',
+    'providers[os-api].downloadVia: provider "nope" does not exist or is disabled',
   ]);
 });
 
@@ -135,7 +135,7 @@ test('rejects duplicated provider ids', () => {
 test('requires at least one enabled provider', () => {
   const yaml = MINIMAL_YAML.replace('type: stremio-addon', 'type: stremio-addon\n    enabled: false');
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'providers: nenhum provedor habilitado',
+    'providers: no provider enabled',
   ]);
 });
 
@@ -146,12 +146,12 @@ test('explains how to create a missing config file', () => {
 
 test('reports invalid YAML', () => {
   const issues = issuesOf(() => loadConfig({ configFile: writeConfig('languages: [unclosed'), env: {} }));
-  assert.match(issues[0] ?? '', /^YAML inválido/);
+  assert.match(issues[0] ?? '', /^invalid YAML/);
 });
 
 test('rejects an e-mail as the OpenSubtitles username', () => {
   const issues = issuesOf(() => loadConfig({ configFile: writeConfig(), env: { ...FULL_ENV, OPENSUBTITLES_USER: 'me@example.com' } }));
-  assert.deepEqual(issues, ['providers[opensubtitles-api].username: use o nome de usuário do OpenSubtitles, não o e-mail']);
+  assert.deepEqual(issues, ['providers[opensubtitles-api].username: use your OpenSubtitles username, not the e-mail']);
 });
 
 test('an enabled indexer needs its manifest URL', () => {
@@ -164,8 +164,8 @@ streams:
       url: https://sootio.example/abc/stream.json
 `;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'streams.indexers.0.url: obrigatório (variável TORRENTIO_URL não definida no .env)',
-    'streams.indexers.1.url: deve ser a URL do manifest.json do addon',
+    'streams.indexers.0.url: required (variable TORRENTIO_URL is not defined in .env)',
+    'streams.indexers.1.url: must be the URL of the addon\'s manifest.json',
   ]);
   const ok = loadConfig({ configFile: writeConfig(yaml.replace('stream.json', 'manifest.json')), env: { TORRENTIO_URL: 'https://torrentio.strem.fun/realdebrid=KEY/manifest.json' } });
   assert.equal(ok.streams.indexers[0]?.timeoutMs, 10000);
@@ -178,7 +178,7 @@ streams:
     token: \${RD_TOKEN}
 `;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'streams.realdebrid.token: obrigatório (variável RD_TOKEN não definida no .env)',
+    'streams.realdebrid.token: required (variable RD_TOKEN is not defined in .env)',
   ]);
   const ok = loadConfig({ configFile: writeConfig(yaml), env: { RD_TOKEN: 'abc' } });
   assert.deepEqual(ok.streams.realdebrid, { enabled: true, token: 'abc', lookback: 20, timeoutMs: 3000 });
@@ -203,6 +203,6 @@ translation:
     enabled: true
     apiKey: \${DEEPL_API_KEY}
 `;
-  assert.throws(() => loadConfig({ configFile: writeConfig(yaml), env: {} }), /translation\.deepl\.apiKey: obrigatório/);
+  assert.throws(() => loadConfig({ configFile: writeConfig(yaml), env: {} }), /translation\.deepl\.apiKey: required/);
   assert.equal(loadConfig({ configFile: writeConfig(yaml), env: { DEEPL_API_KEY: 'k:fx' } }).translation.deepl.apiKey, 'k:fx');
 });

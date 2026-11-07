@@ -1,13 +1,13 @@
-﻿# Gera o APK do RightSubs no Windows. Requer Docker Desktop rodando e Git.
-# Uso:  .\build.ps1
-#       .\build.ps1 -Abis armeabi-v7a,arm64-v8a,x86_64 -Test   (-Test roda os testes do addon antes; os do app rodam sempre)
-#       Só os testes, sem gerar o APK: .\test.ps1
-#       .\build.ps1 -DebugLog            SÓ TESTES: cópia do log legível por adb (gera *-debuglog.apk)
-#       .\build.ps1 -Prefill             SÓ TESTES: credenciais do .env dentro do APK (gera *-prefill.apk)
-#       .\build.ps1 -WorkingTree         SÓ TESTES: addon com as alterações ainda não commitadas de rightsubs\
-# A versão do APK vem do arquivo VERSION (passo a passo de uma versão nova no README).
-# O APK sai em out\. O addon vem de rightsubs\ no último commit deste repositório (git archive):
-# .env e config.yaml nunca fazem parte do APK.
+﻿# Builds the RightSubs APK on Windows. Needs Docker Desktop running and Git.
+# Usage:  .\build.ps1
+#         .\build.ps1 -Abis armeabi-v7a,arm64-v8a,x86_64 -Test   (-Test runs the addon tests first; the app tests always run)
+#         Tests only, without building the APK: .\test.ps1
+#         .\build.ps1 -DebugLog            TESTING ONLY: log copy readable with adb (builds *-debuglog.apk)
+#         .\build.ps1 -Prefill             TESTING ONLY: credentials from .env inside the APK (builds *-prefill.apk)
+#         .\build.ps1 -WorkingTree         TESTING ONLY: addon with the still uncommitted changes in rightsubs\
+# The APK version comes from the VERSION file (steps for a new version in the README).
+# The APK lands in out\. The addon comes from rightsubs\ in this repository's last commit (git archive):
+# .env and config.yaml are never part of the APK.
 param(
   [string[]]$Abis = @('armeabi-v7a', 'arm64-v8a'),
   [switch]$Test,
@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Continue'
 $root = $PSScriptRoot
 
 docker info *> $null
-if ($LASTEXITCODE -ne 0) { throw 'Docker não está rodando: abra o Docker Desktop e tente de novo.' }
+if ($LASTEXITCODE -ne 0) { throw 'Docker is not running: open Docker Desktop and try again.' }
 
 New-Item -ItemType Directory -Force (Join-Path $root 'build') | Out-Null
 $source = 'HEAD'
@@ -33,19 +33,19 @@ if ($WorkingTree) {
   git -C $root add -A -- rightsubs
   $source = git -C $root write-tree
   Remove-Item Env:GIT_INDEX_FILE
-  if ($LASTEXITCODE -ne 0 -or -not $source) { throw 'não foi possível montar o rightsubs\ do diretório de trabalho' }
-  Write-Warning 'Addon montado das alterações não commitadas de rightsubs\ (-WorkingTree).'
+  if ($LASTEXITCODE -ne 0 -or -not $source) { throw 'could not assemble rightsubs\ from the working directory' }
+  Write-Warning 'Addon built from the uncommitted changes in rightsubs\ (-WorkingTree).'
 } elseif (git -C $root status --porcelain -- rightsubs) {
-  Write-Warning 'Há alterações não commitadas em rightsubs\: o APK usa só o último commit (use -WorkingTree para testar com elas).'
+  Write-Warning 'rightsubs\ has uncommitted changes: the APK uses only the last commit (use -WorkingTree to test with them).'
 }
 git -C $root archive --format=tar -o (Join-Path $root 'build\rightsubs-src.tar') "${source}:rightsubs"
-if ($LASTEXITCODE -ne 0) { throw 'git archive falhou (rightsubs\ está commitado?)' }
+if ($LASTEXITCODE -ne 0) { throw 'git archive failed (is rightsubs\ committed?)' }
 # Recorded in out\BUILD-INFO.txt: which commit went into the APK.
 $apkCommit = git -C $root rev-parse --short HEAD
-if (git -C $root status --porcelain --untracked-files=no) { $apkCommit += '+alterações' }
+if (git -C $root status --porcelain --untracked-files=no) { $apkCommit += '+dirty' }
 
 docker build -t rightsubs-apk-builder (Join-Path $root 'docker')
-if ($LASTEXITCODE -ne 0) { throw 'docker build falhou' }
+if ($LASTEXITCODE -ne 0) { throw 'docker build failed' }
 
 $runTests = if ($Test) { '1' } else { '0' }
 docker run --rm `
@@ -53,7 +53,7 @@ docker run --rm `
   -e "ABIS=$($Abis -join ' ')" -e "RUN_TESTS=$runTests" -e "DEBUG_LOG=$(if ($DebugLog) { '1' } else { '0' })" `
   -e "PREFILL=$(if ($Prefill) { '1' } else { '0' })" -e "APK_COMMIT=$apkCommit" `
   rightsubs-apk-builder bash /work/scripts/container-build.sh
-if ($LASTEXITCODE -ne 0) { throw 'build do APK falhou (detalhes acima)' }
-Write-Host "`nAPKs em $(Join-Path $root 'out')"
-if ($Prefill) { Write-Warning 'ESTES APKs TÊM AS CREDENCIAIS DO .env EM TEXTO PURO. Só para os seus testes: NUNCA distribua.' }
-elseif ($DebugLog) { Write-Warning 'ESTES APKs GRAVAM O LOG COM OS FILMES ASSISTIDOS. Só para os seus testes: NUNCA distribua.' }
+if ($LASTEXITCODE -ne 0) { throw 'APK build failed (details above)' }
+Write-Host "`nAPKs in $(Join-Path $root 'out')"
+if ($Prefill) { Write-Warning 'THESE APKs CARRY THE .env CREDENTIALS IN PLAIN TEXT. For your own tests only: NEVER distribute them.' }
+elseif ($DebugLog) { Write-Warning 'THESE APKs WRITE A LOG WITH THE MOVIES WATCHED. For your own tests only: NEVER distribute them.' }
