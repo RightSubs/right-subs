@@ -12,28 +12,39 @@ export class ConfigError extends Error {
   }
 }
 
-/** Plain messages for the validation errors a user is likely to hit while editing config.yaml. */
-export const errorMap: z.ZodErrorMap = (issue, ctx) => {
+/**
+ * Plain messages for the validation errors a user is likely to hit while editing config.yaml.
+ * Anything else keeps zod's own message (returning undefined).
+ */
+export const errorMap: z.core.$ZodErrorMap = (issue) => {
   switch (issue.code) {
-    case z.ZodIssueCode.invalid_type:
-      if (issue.received === 'undefined') return { message: 'required' };
-      return { message: `invalid type: expected ${issue.expected}, got ${issue.received}` };
-    case z.ZodIssueCode.invalid_enum_value:
-      return { message: `invalid value "${String(issue.received)}" — options: ${issue.options.join(', ')}` };
-    case z.ZodIssueCode.invalid_string:
-      if (issue.validation === 'url') return { message: 'invalid URL' };
+    case 'invalid_type':
+      if (issue.input === undefined) return 'required';
+      return `invalid type: expected ${issue.expected}, got ${describe(issue.input)}`;
+    case 'invalid_value':
+      return `invalid value "${String(issue.input)}" — options: ${issue.values.map(String).join(', ')}`;
+    case 'invalid_format':
+      if (issue.format === 'url') return 'invalid URL';
       break;
-    case z.ZodIssueCode.unrecognized_keys:
-      return { message: `unknown option: ${issue.keys.join(', ')} (typo?)` };
-    case z.ZodIssueCode.too_small:
-      if (issue.type === 'string') return { message: 'must not be empty' };
-      if (issue.type === 'array') return { message: `needs at least ${String(issue.minimum)} item(s)` };
-      return { message: `must be greater than or equal to ${String(issue.minimum)}` };
-    case z.ZodIssueCode.too_big:
-      return { message: `must be less than or equal to ${String(issue.maximum)}` };
+    case 'unrecognized_keys':
+      return `unknown option: ${issue.keys.join(', ')} (typo?)`;
+    case 'too_small':
+      if (issue.origin === 'string') return 'must not be empty';
+      if (issue.origin === 'array') return `needs at least ${String(issue.minimum)} item(s)`;
+      return `must be greater than or equal to ${String(issue.minimum)}`;
+    case 'too_big':
+      return `must be less than or equal to ${String(issue.maximum)}`;
   }
-  return { message: ctx.defaultError };
+  return undefined;
 };
+
+/** The type name zod 3 used to report ("string", "number", "array", "null"…). */
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  if (typeof value === 'number' && Number.isNaN(value)) return 'nan';
+  return typeof value;
+}
 
 /**
  * Renders an issue path like `languages.primary`, appending a hint when the value

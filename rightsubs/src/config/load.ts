@@ -47,7 +47,7 @@ export function loadConfig({ configFile, envFile, env = process.env }: LoadOptio
   const mergedEnv = { ...readEnvFile(resolvedEnvFile), ...definedOnly(env) };
   const { value, missing } = substituteEnv(document ?? {}, mergedEnv);
 
-  const parsed = configSchema.safeParse(value, { errorMap });
+  const parsed = configSchema.safeParse(value, { error: errorMap });
   if (!parsed.success) {
     throw new ConfigError(
       configFile,
@@ -91,7 +91,7 @@ function validateProviders(
       return;
     }
 
-    const result = providerType.options.safeParse(rawOptions, { errorMap });
+    const result = providerType.options.safeParse(rawOptions, { error: errorMap });
     if (!result.success) {
       for (const issue of result.error.issues) {
         const field = issue.path.join('.');

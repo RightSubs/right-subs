@@ -5,7 +5,7 @@ const language = z.string().transform((value, ctx): Language => {
   const found = findLanguage(value);
   if (!found) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       message: `unknown language "${value}" — valid examples: ${LANGUAGE_EXAMPLES.join(', ')}`,
     });
     return z.NEVER;
@@ -27,7 +27,7 @@ const indexer = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'required' });
+    if (entry.enabled && !entry.url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'required' });
   });
 
 /** Finds the file being played in the Real-Debrid download history (no stream proxy needed). */
@@ -40,7 +40,7 @@ const realdebrid = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'required' });
+    if (entry.enabled && !entry.token) ctx.addIssue({ code: 'custom', path: ['token'], message: 'required' });
   });
 
 /** Finds torrents played without a debrid service in Stremio's local streaming server (same device). */
@@ -67,7 +67,7 @@ const deepl = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'required' });
+    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: 'custom', path: ['apiKey'], message: 'required' });
   });
 
 /** Generic provider entry; type-specific options are validated by each provider type. */
@@ -87,7 +87,7 @@ export const configSchema = z
         port: z.number().int().min(1).max(65535).default(7000),
       })
       .strict()
-      .default({}),
+      .prefault({}),
     languages: z
       .object({
         primary: language,
@@ -103,7 +103,7 @@ export const configSchema = z
         stremio: stremio.optional(),
       })
       .strict()
-      .default({}),
+      .prefault({}),
     sync: z
       .object({
         enabled: z.boolean().default(true),
@@ -116,20 +116,20 @@ export const configSchema = z
             windowSeconds: z.number().int().min(15).max(600).default(45),
           })
           .strict()
-          .default({}),
+          .prefault({}),
         /** Only for syncing, never shown: searched as references and preferred among embedded tracks. */
-        referenceLanguages: z.array(language).max(5).default(['en']),
+        referenceLanguages: z.array(language).max(5).prefault(['en']),
         audio: z
           .object({
             samples: z.number().int().min(1).default(8),
             sampleSeconds: z.number().positive().default(45),
           })
           .strict()
-          .default({}),
+          .prefault({}),
       })
       .strict()
-      .default({}),
-    translation: z.object({ deepl: deepl.default({}) }).strict().default({}),
+      .prefault({}),
+    translation: z.object({ deepl: deepl.prefault({}) }).strict().prefault({}),
     resources: z
       .object({
         idleAfterMinutes: z.number().positive().default(10),
@@ -138,7 +138,7 @@ export const configSchema = z
         lowPriority: z.boolean().default(true),
       })
       .strict()
-      .default({}),
+      .prefault({}),
     cache: z
       .object({
         dir: z.string().min(1).default('~/.rightsubs/cache'),
@@ -146,20 +146,20 @@ export const configSchema = z
         maxAgeDays: z.number().positive().default(10),
       })
       .strict()
-      .default({}),
+      .prefault({}),
     log: z
       .object({
         level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
       })
       .strict()
-      .default({}),
+      .prefault({}),
   })
   .strict()
   .superRefine((config, ctx) => {
     const { primary, secondary } = config.languages;
     if (secondary && secondary.tag === primary.tag) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['languages', 'secondary'],
         message: 'must differ from the primary language',
       });
@@ -167,7 +167,7 @@ export const configSchema = z
     const indexerIds = new Set<string>();
     config.streams.indexers.forEach((entry, index) => {
       if (indexerIds.has(entry.id)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['streams', 'indexers', index, 'id'], message: `id "${entry.id}" repetido` });
+        ctx.addIssue({ code: 'custom', path: ['streams', 'indexers', index, 'id'], message: `id "${entry.id}" is repeated` });
       }
       indexerIds.add(entry.id);
     });
@@ -175,9 +175,9 @@ export const configSchema = z
     config.providers.forEach((provider, index) => {
       if (seen.has(provider.id)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['providers', index, 'id'],
-          message: `id "${provider.id}" repetido`,
+          message: `id "${provider.id}" is repeated`,
         });
       }
       seen.add(provider.id);
