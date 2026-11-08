@@ -54,7 +54,8 @@ jobs:
             echo "::warning::VT_API_KEY not set: release $TAG not sent to VirusTotal (see README › Releases)"
             exit 0
           fi
-          node scripts/virustotal.mjs "$RUNNER_TEMP/apks" "$RUNNER_TEMP/virustotal.md"
+          node scripts/virustotal.mjs "$RUNNER_TEMP/apks" "$RUNNER_TEMP/virustotal.md" \
+            "https://github.com/$GH_REPO/releases/download/$TAG"
           cat "$RUNNER_TEMP/virustotal.md" >> "$GITHUB_STEP_SUMMARY"
           echo "done=1" >> "$GITHUB_OUTPUT"
 
@@ -62,6 +63,6 @@ jobs:
       - name: Add the result to the release notes
         if: steps.scan.outputs.done == '1'
         run: |
-          gh release view "$TAG" --json body -q .body | awk '/^## VirusTotal$/ { exit } { print }' > "$RUNNER_TEMP/notes.md"
+          gh release view "$TAG" --json body -q .body | awk '/^## .*VirusTotal/ { exit } { print }' > "$RUNNER_TEMP/notes.md"
           { echo; cat "$RUNNER_TEMP/virustotal.md"; } >> "$RUNNER_TEMP/notes.md"
           gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Sends every APK in a folder to VirusTotal, waits for the scans and writes a Markdown section for
-// the release notes: one row per APK with the detections and a link to its report. Progress (and,
-// on GitHub Actions, a warning per flagged APK) goes to the console; the API key never does.
-// Usage: VT_API_KEY=… node scripts/virustotal.mjs <folder> <output.md>
+// the release notes: one row per APK with its download link, a badge with the result
+// (malicious/suspicious/engines, drawn by shields.io from these numbers: no third party queries
+// VirusTotal) and a link to the live report. Progress (and, on GitHub Actions, a warning per flagged
+// APK) goes to the console; the API key never does.
+// Usage: VT_API_KEY=… node scripts/virustotal.mjs <folder> <output.md> [download base URL]
 //
 // The free API allows 4 requests a minute, so calls are spaced 15 s apart. Files over 32 MB
 // (every APK of ours) must go through an upload URL, which costs one more call each.
@@ -10,10 +12,10 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const [dir, output] = process.argv.slice(2);
+const [dir, output, downloadBase] = process.argv.slice(2);
 const key = process.env.VT_API_KEY;
 if (!dir || !output || !key) {
-  console.error('usage: VT_API_KEY=… node scripts/virustotal.mjs <folder> <output.md>');
+  console.error('usage: VT_API_KEY=… node scripts/virustotal.mjs <folder> <output.md> [download base URL]');
   process.exit(2);
 }
 const API = process.env.VT_API_URL ?? 'https://www.virustotal.com/api/v3';
@@ -65,25 +67,33 @@ while (scans.some((scan) => !scan.stats) && Date.now() < deadline) {
   }
 }
 
+// shields.io static badge: "-" and "_" are separators in the path, so they are doubled.
+const badge = (label, message, color) => {
+  const part = (text) => encodeURIComponent(text.replaceAll('-', '--').replaceAll('_', '__'));
+  return `https://img.shields.io/badge/${part(label)}-${part(message)}-${color}?logo=virustotal&logoColor=white`;
+};
+
 const rows = scans.map(({ name, sha256: hash, stats }) => {
-  let result = 'still scanning (see the report)';
+  const report = `https://www.virustotal.com/gui/file/${hash}/detection`;
+  let status = badge(hash.slice(0, 6), 'scanning', 'lightgrey');
   if (stats) {
-    const flagged = stats.malicious + stats.suspicious;
-    const engines = flagged + stats.undetected + stats.harmless;
-    result = `${flagged} of ${engines} engines`;
-    if (flagged > 0 && process.env.GITHUB_ACTIONS) {
-      console.log(`::warning::${name}: ${flagged} VirusTotal engine(s) flagged it`);
+    const engines = stats.malicious + stats.suspicious + stats.undetected + stats.harmless;
+    const color = stats.malicious > 0 ? 'red' : stats.suspicious > 0 ? 'orange' : '2ea44f';
+    status = badge(hash.slice(0, 6), `${stats.malicious}/${stats.suspicious}/${engines}`, color);
+    if (stats.malicious + stats.suspicious > 0 && process.env.GITHUB_ACTIONS) {
+      console.log(`::warning::${name}: ${stats.malicious} malicious and ${stats.suspicious} suspicious on VirusTotal`);
     }
   }
-  return `| \`${name}\` | ${result} | [report](https://www.virustotal.com/gui/file/${hash}) |`;
+  const file = downloadBase ? `[${name}](${downloadBase}/${name})` : `\`${name}\``;
+  return `| ${file} | [![VirusTotal: ${name}](${status})](${report}) | [View report](${report}) |`;
 });
 
 const date = new Date().toISOString().slice(0, 10);
-await writeFile(output, `## VirusTotal
+await writeFile(output, `## 🛡️ VirusTotal analysis
 
-Each APK as scanned by [VirusTotal](https://www.virustotal.com) on ${date}. The report shows the current result.
+Scanned on ${date}. The badge shows malicious / suspicious / engines at that time; the report shows the current result.
 
-| APK | Detections | Report |
-|---|---|---|
+| APK | VirusTotal | Detailed report |
+| :--- | :---: | :--- |
 ${rows.join('\n')}
 `);
