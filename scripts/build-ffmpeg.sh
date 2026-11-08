@@ -21,14 +21,14 @@ case "$ABI" in
   armeabi-v7a) ARCH=arm; CPU=armv7-a; TRIPLE=armv7a-linux-androideabi; ASM=(--enable-neon) ;;
   arm64-v8a) ARCH=aarch64; CPU=armv8-a; TRIPLE=aarch64-linux-android; ASM=(--enable-neon) ;;
   x86_64) ARCH=x86_64; CPU=x86-64; TRIPLE=x86_64-linux-android; ASM=(--disable-asm) ;;
-  *) echo "ABI desconhecida: $ABI" >&2; exit 2 ;;
+  *) echo "unknown ABI: $ABI" >&2; exit 2 ;;
 esac
 
 # Rebuilt only when this script, the patch, the version or the OpenSSL headers change.
 KEY=$( (cat "$0" "$PATCH"; echo "$ABI $FFMPEG_VERSION"; cat "$TERMUX_USR/include/openssl/opensslv.h") | sha256sum | cut -c1-16)
 BUILT="$CACHE/ffmpeg/$ABI-$KEY"
 if [ -x "$BUILT/ffmpeg" ] && [ -x "$BUILT/ffprobe" ]; then
-  echo "ffmpeg $FFMPEG_VERSION ($ABI): do cache"
+  echo "ffmpeg $FFMPEG_VERSION ($ABI): from the cache"
 else
   TARBALL="$CACHE/ffmpeg-$FFMPEG_VERSION.tar.xz"
   mkdir -p "$CACHE"
@@ -68,7 +68,7 @@ else
   mkdir -p "$BUILT"
   for tool in ffmpeg ffprobe; do "$TC/bin/llvm-strip" -o "$BUILT/$tool" "$SRC/$tool"; done
   rm -rf "$WORK"
-  echo "ffmpeg $FFMPEG_VERSION ($ABI): compilado"
+  echo "ffmpeg $FFMPEG_VERSION ($ABI): built"
 fi
 
 mkdir -p "$OUT"

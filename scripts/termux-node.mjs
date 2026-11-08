@@ -26,7 +26,7 @@ const { values: opts, positionals: abis } = parseArgs({
   options: { cache: { type: 'string' }, stage: { type: 'string' }, out: { type: 'string' }, check: { type: 'string' } },
 });
 
-for (const abi of abis) if (!ARCH[abi]) throw new Error(`ABI desconhecida: ${abi} (use ${Object.keys(ARCH).join(', ')})`);
+for (const abi of abis) if (!ARCH[abi]) throw new Error(`unknown ABI: ${abi} (use ${Object.keys(ARCH).join(', ')})`);
 if (abis.length === 0) throw new Error('give at least one ABI');
 
 /** APK-safe name: libssl.so.3 → libssl_so_3.so. */
