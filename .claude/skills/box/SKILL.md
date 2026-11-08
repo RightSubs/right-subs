@@ -1,29 +1,29 @@
 ---
 name: box
-description: Acessa a box Android TV pela rede (adb dentro do container) para instalar o APK, ver o /health e o log do RightSubs e medir a extração de legendas na própria box. Use quando o usuário pedir para instalar na box, ler o log, verificar se o addon está rodando ou investigar um filme que saiu dessincronizado.
+description: Reaches the Android TV box over the network (adb inside the container) to install the APK, read RightSubs' /health and log, and time subtitle extraction on the box itself. Use when the user asks to install on the box, read the log, check whether the addon is running, or investigate a movie that came out of sync.
 ---
 
-# Trabalhar na box
+# Working on the box
 
-IP e dados da box em `CLAUDE.local.md`. Tudo passa por `scripts/adb.sh` (adb dentro do container; chave no volume `rightsubs-adb`). Exemplo: `BOX=<ip> sh scripts/adb.sh shell getprop ro.product.model`.
+The box's IP and details are in `CLAUDE.local.md`. Everything goes through `scripts/adb.sh` (adb inside the container; key in the `rightsubs-adb` volume). Example: `BOX=<ip> sh scripts/adb.sh shell getprop ro.product.model`.
 
-Se não conectar: a box reiniciou/atualizou, ou a depuração foi desligada. Peça ao usuário para ligar **Opções do desenvolvedor → Depuração USB** (e depuração pela rede, se houver) e aceitar "Sempre permitir" na TV. Ao terminar uma rodada de testes, lembre-o de desligar a depuração.
+If it does not connect: the box restarted/updated, or debugging was turned off. Ask the user to turn on **Developer options → USB debugging** (and network debugging, if there is one) and accept "Always allow" on the TV. When a round of tests is over, remind them to turn debugging off.
 
-## Instalar / atualizar
+## Install / update
 
 ```sh
-BOX=<ip> sh scripts/adb.sh shell getprop ro.product.cpu.abilist     # armeabi-v7a → APK armeabi-v7a
-BOX=<ip> sh scripts/adb.sh install -r /out/<apk>                     # -r mantém as credenciais
+BOX=<ip> sh scripts/adb.sh shell getprop ro.product.cpu.abilist     # armeabi-v7a → armeabi-v7a APK
+BOX=<ip> sh scripts/adb.sh install -r /out/<apk>                     # -r keeps the credentials
 BOX=<ip> sh scripts/adb.sh shell am start -n com.rightsubs.android/.MainActivity
 ```
 
-- Mesma chave de assinatura (`signing/`) = atualiza por cima. Chave diferente → `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (exigiria desinstalar e perder as credenciais: pergunte antes).
-- Antes da primeira instalação numa box com o RightSubs do **Termux**, ele precisa ser removido (porta 7000).
-- O usuário aperta "Salvar e iniciar" na TV; não automatize a tela (ela é `FLAG_SECURE` e mostra credenciais).
+- Same signing key = installs over. A different key → `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (it would need an uninstall and the credentials would be lost: ask first). Releases are signed with the organization's key (GitHub secrets); a local build uses the key in `signing/`, which is a different one, so a local build does not install over a release (and vice versa).
+- Before the first install on a box that runs the **Termux** RightSubs, that one must be removed (port 7000).
+- The user presses "Save and start" on the TV; do not automate the screen (it is `FLAG_SECURE` and shows credentials).
 
-## Ver se está rodando (/health)
+## Is it running (/health)
 
-O `forward` só vale dentro do container, então faça tudo numa chamada:
+`forward` only works inside the container, so do it all in one call:
 
 ```sh
 MSYS_NO_PATHCONV=1 docker run --rm -e BOX=<ip> -v rightsubs-adb:/root/.android rightsubs-apk-builder bash -c '
@@ -31,36 +31,36 @@ MSYS_NO_PATHCONV=1 docker run --rm -e BOX=<ip> -v rightsubs-adb:/root/.android r
   adb forward tcp:7000 tcp:7000 >/dev/null; curl -s http://127.0.0.1:7000/health'
 ```
 
-Interesse: `tools.ffmpeg.available`, `providers[0].login`, `locator` (Real-Debrid), `subtitles.served` e `subtitles.recentUnsynced` (zera ao reiniciar).
+Of interest: `tools.ffmpeg.available`, `providers[0].login` (`ok`, `no_account`, `rejected`, `pending`), `locator` (Real-Debrid), `subtitles.served` and `subtitles.recentUnsynced` (reset on restart).
 
-## Ler o log
+## Reading the log
 
-Só nos APKs `-debuglog` (`.\build.ps1 -DebugLog`: cópia do log em armazenamento acessível; o log principal é privado do app):
+Only in `-debuglog` APKs (`.\build.ps1 -DebugLog` / `DEBUG_LOG=1 sh build.sh`: a copy of the log in accessible storage; the main log is private to the app):
 
 ```sh
 BOX=<ip> sh scripts/adb.sh shell "grep -v http.request /sdcard/Android/data/com.rightsubs.android/files/rightsubs.log | tail -n 60" \
   | sed -E 's#https?(:|%3A|%253A)(/|%2F|%252F){2}[^ "]*real-debrid\.com(/|%2F|%252F)d(/|%2F|%252F)[^ "]*#***#gI' | cut -c1-600
 ```
 
-Sempre com esse `sed`: APKs anteriores à correção de 2026-11-01 podem ter links do RD no log, inclusive codificados (`https%3A%2F%2F…`), que um filtro só por `https://` deixa passar.
+Always with that `sed`: APKs older than the 2026-11-01 fix may have RD links in the log, encoded ones too (`https%3A%2F%2F…`), which a filter on `https://` alone lets through.
 
-No APK normal, só pelo botão **Log** do app (o usuário lê na TV).
+In the normal APK, only through the app's **Log** button (the user reads it on the TV).
 
-Linhas que importam por filme:
-1. `subtitles.choice`: `candidates` por idioma (os de `referenceLanguages`, padrão `en`, entram aqui) e o idioma escolhido.
-2. `file.located`: `source` = `realdebrid` ou `stremio` (torrent sem RD: sem embutida).
-3. `video.probed`: faixas embutidas, fps.
-4. `embedded.extracted`/`embedded.failed`: trechos, `timeoutMs` (cresce com o bitrate), `ms`.
-5. `subtitles.served`: `sync.status` (`exact`, `synced`, `already_synced`, `likely_synced`, `fps_corrected`, `no_reference`, `low_confidence`, `budget_exceeded`), `offsetMs`, razão de fps e `referenceMatch` (`same_edit` = referência de outro release da mesma edição).
+Lines that matter for each movie:
+1. `subtitles.choice`: `candidates` per language (those in `referenceLanguages`, default `en`, are here too) and the chosen language.
+2. `file.located`: `source` = `realdebrid` or `stremio` (torrent without RD: no embedded track).
+3. `video.probed`: embedded tracks, fps.
+4. `embedded.extracted`/`embedded.failed`: windows, `timeoutMs` (grows with the bitrate), `ms`.
+5. `subtitles.served`: `sync.status` (`exact`, `synced`, `already_synced`, `likely_synced`, `fps_corrected`, `no_reference`, `low_confidence`, `budget_exceeded`), `offsetMs`, fps ratio and `referenceMatch` (`same_edit` = reference from another release of the same edition).
 
-Tradução pelo DeepL (sem PT): `subtitles.choice` com `translate: true`; `embedded.extracted` com 6 `windows`; uma `translation.candidate` por candidata (`status`: `synced`/`already_synced` aceita; `inconsistent`/`weak_agreement`/`unconfirmed`/`low_confidence` recusa; `deviationMs`, `starts`); `translation.done` e `subtitles.served` com `status: translated`, `from`, `offsetMs`. Na primeira vez, `subtitles.placeholder` (provisória após 3 s) e `subtitles.track_closed` (`delivered: true` = o Stremio ainda estava lá). O vídeo da box só abre se o `.srt` chegar em poucos segundos do 1º pedido: ver `rightsubs/docs/TRADUCAO-DEEPL.md`.
+DeepL translation (no subtitle in the wanted languages): `subtitles.choice` with `translate: true`; `embedded.extracted` with 6 `windows`; one `translation.candidate` per candidate (`status`: `synced`/`already_synced` accepted; `inconsistent`/`weak_agreement`/`unconfirmed`/`low_confidence` refused; `deviationMs`, `starts`); `translation.done` and `subtitles.served` with `status: translated`, `from`, `offsetMs`. The first time, `subtitles.placeholder` (provisional after 3 s) and `subtitles.track_closed` (`delivered: true` = Stremio was still there). The box only opens the video if the `.srt` arrives within a few seconds of the first request: see `rightsubs/docs/DEEPL-TRANSLATION.md`.
 
-`subtitles.track_requested` repetido a cada ~10 s = o player esperando o `.srt`. A ordem das referências e o que cada status quer dizer: `rightsubs/CLAUDE.md`; casos com gabarito para comparar: `rightsubs/docs/DESCOBERTAS.md`.
+`subtitles.track_requested` repeated every ~10 s = the player waiting for the `.srt`. The order of references and what each status means: `rightsubs/CLAUDE.md`; cases with known answers to compare against: `rightsubs/docs/FINDINGS.md`.
 
-## Medir a extração na box
+## Timing the extraction on the box
 
-Peça ao usuário o **link direto** do arquivo (`https://<n>.download.real-debrid.com/d/<código>/<nome>.mkv`; a página `real-debrid.com/d/…` não serve) e use `scripts/box/extract-timing.sh` (instruções no cabeçalho). Ele mede o download direto, cada trecho com os argumentos do RightSubs e o mesmo trecho só com o áudio, e apaga tudo de `/data/local/tmp/rs` no fim. Nunca imprima o link: mascare com o mesmo `sed` da seção "Ler o log".
+Ask the user for the file's **direct link** (`https://<n>.download.real-debrid.com/d/<code>/<name>.mkv`; the `real-debrid.com/d/…` page does not work) and use `scripts/box/extract-timing.sh` (instructions in its header). It times the direct download, each window with RightSubs' arguments and the same window with audio only, and deletes everything in `/data/local/tmp/rs` at the end. Never print the link: mask it with the same `sed` as in "Reading the log".
 
-Regras para scripts na box: escreva num arquivo, tire o `\r` (`tr -d '\r'`) e envie com `adb push` (aspas aninhadas em `adb shell "…"` quebram); não use `pkill -f` (mata o próprio shell). Faixa e fps: rode antes `libffprobe.so -v error -show_entries stream=index,codec_type,codec_name:stream_tags=language,title -of compact <url>` com o mesmo `LD_LIBRARY_PATH`/`SSL_CERT_FILE` do script.
+Rules for scripts on the box: write them to a file, strip `\r` (`tr -d '\r'`) and send with `adb push` (nested quotes in `adb shell "…"` break); do not use `pkill -f` (it kills its own shell). Track and fps: first run `libffprobe.so -v error -show_entries stream=index,codec_type,codec_name:stream_tags=language,title -of compact <url>` with the script's `LD_LIBRARY_PATH`/`SSL_CERT_FILE`.
 
-Mudanças de comportamento de sincronização são em **`rightsubs/`** (regras em `rightsubs/CLAUDE.md`). Apresente os resultados e pergunte antes de aplicar uma correção.
+Changes to sync behavior go in **`rightsubs/`** (rules in `rightsubs/CLAUDE.md`). Present the results and ask before applying a fix.

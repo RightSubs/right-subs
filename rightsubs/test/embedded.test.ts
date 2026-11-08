@@ -141,7 +141,7 @@ test('a torrent being played is never read for the embedded reference', async ()
 test('a failed extraction is retried on a later lookup', async () => {
   let fail = true;
   const { references, calls } = setup(async () => {
-    if (fail) throw new Error('ffmpeg sem resposta');
+    if (fail) throw new Error('ffmpeg gave no response');
     return EXTRACTED;
   });
   const first = await references.lookup('Halloween.mkv', 1, video, subtitle);

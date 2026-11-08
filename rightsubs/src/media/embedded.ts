@@ -105,8 +105,8 @@ function extractOne(
     child.on('close', (code, killed) => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', kill);
-      if (killed) return reject(new Error(signal?.aborted ? 'cancelado' : `ffmpeg sem resposta em ${timeoutMs} ms`));
-      if (code !== 0) return reject(new Error(`ffmpeg saiu com código ${code}: ${stderr.trim().split('\n').at(-1) ?? ''}`));
+      if (killed) return reject(new Error(signal?.aborted ? 'cancelled' : `ffmpeg gave no response in ${timeoutMs} ms`));
+      if (code !== 0) return reject(new Error(`ffmpeg exited with code ${code}: ${stderr.trim().split('\n').at(-1) ?? ''}`));
       resolve(stdout);
     });
   });

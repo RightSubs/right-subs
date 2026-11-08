@@ -27,7 +27,7 @@ const { values: opts, positionals: abis } = parseArgs({
 });
 
 for (const abi of abis) if (!ARCH[abi]) throw new Error(`ABI desconhecida: ${abi} (use ${Object.keys(ARCH).join(', ')})`);
-if (abis.length === 0) throw new Error('informe ao menos uma ABI');
+if (abis.length === 0) throw new Error('give at least one ABI');
 
 /** APK-safe name: libssl.so.3 → libssl_so_3.so. */
 export const apkName = (soname) => (/^lib[^/]*\.so$/.test(soname) ? soname : `lib${soname.slice(3).replace(/\./g, '_')}.so`);
@@ -48,7 +48,7 @@ if (opts.check) {
       for (const lib of needed(join(dir, file))) {
         const ok = SYSTEM_LIBS.has(lib) || present.has(lib) || (map.has(lib) && present.has(map.get(lib)));
         if (!ok) {
-          console.error(`[${abi}] ${file} precisa de ${lib}, que não está no APK`);
+          console.error(`[${abi}] ${file} needs ${lib}, which is not in the APK`);
           problems++;
         }
       }
@@ -81,8 +81,8 @@ function resolveDeps(index, root) {
   const visit = (name) => {
     if (seen.has(name)) return;
     const pkg = index.get(name);
-    if (!pkg) throw new Error(`pacote ${name} não encontrado no repositório do Termux`);
-    if (!/^[0-9a-f]{64}$/.test(pkg.SHA256 ?? '')) throw new Error(`pacote ${name} sem SHA-256 no índice`);
+    if (!pkg) throw new Error(`package ${name} not found in the Termux repository`);
+    if (!/^[0-9a-f]{64}$/.test(pkg.SHA256 ?? '')) throw new Error(`package ${name} has no SHA-256 in the index`);
     seen.set(name, pkg);
     for (const dep of (pkg.Depends ?? '').split(',').map((d) => d.split('|')[0].replace(/\(.*\)/, '').trim()).filter(Boolean)) {
       visit(dep);
@@ -113,7 +113,7 @@ async function main() {
       const valid = () => existsSync(deb) && createHash('sha256').update(readFileSync(deb)).digest('hex') === pkg.SHA256;
       if (!valid()) {
         writeFileSync(deb, await fetchBuffer(`${REPO}/${pkg.Filename}`));
-        if (!valid()) throw new Error(`SHA-256 não confere: ${pkg.Filename}`);
+        if (!valid()) throw new Error(`SHA-256 mismatch: ${pkg.Filename}`);
       }
       execFileSync('dpkg-deb', ['-x', deb, root]);
       if (pkg.Package === ROOT_PACKAGE) versions.push(`${abi}: ${pkg.Package} ${pkg.Version}`);
@@ -131,7 +131,7 @@ async function main() {
       for (const lib of needed(queue.shift())) {
         if (done.has(lib) || SYSTEM_LIBS.has(lib)) continue;
         const source = join(usr, 'lib', lib);
-        if (!existsSync(source)) throw new Error(`[${abi}] ${lib} não está nos pacotes do Termux nem no sistema`);
+        if (!existsSync(source)) throw new Error(`[${abi}] ${lib} is neither in the Termux packages nor in the system`);
         done.add(lib);
         const name = apkName(lib);
         copyFileSync(realpathSync(source), join(jni, name));

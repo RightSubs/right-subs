@@ -24,7 +24,7 @@ const optionsSchema = z
     username: z
       .string()
       .min(1)
-      .refine((value) => !value.includes('@'), 'use o nome de usuário do OpenSubtitles, não o e-mail')
+      .refine((value) => !value.includes('@'), 'use your OpenSubtitles username, not the e-mail')
       .optional(),
     password: z.string().min(1).optional(),
     /** Id of another provider used to download files without spending the API quota. */
@@ -64,7 +64,7 @@ interface DownloadResponse {
 
 export const openSubtitlesApi: ProviderType = {
   type: 'opensubtitles-api',
-  description: 'API REST do OpenSubtitles (conta gratuita + API key)',
+  description: 'OpenSubtitles REST API (free account + API key)',
   options: optionsSchema,
   create: (options, context) => new OpenSubtitlesApiProvider(options as Options, context),
 };
@@ -127,7 +127,7 @@ class OpenSubtitlesApiProvider implements SubtitleProvider {
   async download(candidate: SubtitleCandidate): Promise<Buffer> {
     const { remaining, resetAt } = this.#quota;
     if (remaining === 0 && resetAt && Date.now() < Date.parse(resetAt)) {
-      throw new ProviderError(this.id, `cota diária de downloads esgotada (renova em ${resetAt})`, 406);
+      throw new ProviderError(this.id, `daily download quota used up (resets at ${resetAt})`, 406);
     }
     const link = await this.#downloadLink(Number(candidate.ref), true);
     return requestFile(this.#context, link, this.#options.timeoutMs);
@@ -135,7 +135,7 @@ class OpenSubtitlesApiProvider implements SubtitleProvider {
 
   status(): Record<string, unknown> {
     return {
-      login: !this.#options.username ? 'sem conta' : this.#session ? 'ok' : this.#loginBlockedUntil > Date.now() ? 'recusado' : 'pendente',
+      login: !this.#options.username ? 'no_account' : this.#session ? 'ok' : this.#loginBlockedUntil > Date.now() ? 'rejected' : 'pending',
       quota: { remaining: this.#quota.remaining ?? null, resetAt: this.#quota.resetAt ?? null },
     };
   }
@@ -191,7 +191,7 @@ class OpenSubtitlesApiProvider implements SubtitleProvider {
       this.#context.logger.warn('opensubtitles.login_failed', {
         provider: this.id,
         message: (err as Error).message,
-        hint: 'confira OPENSUBTITLES_USER (nome de usuário, não e-mail) e OPENSUBTITLES_PASSWORD no .env; downloads seguem como anônimos',
+        hint: 'check OPENSUBTITLES_USER (username, not e-mail) and OPENSUBTITLES_PASSWORD; downloads go on as anonymous',
       });
       return undefined;
     }

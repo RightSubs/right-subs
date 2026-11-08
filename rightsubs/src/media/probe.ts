@@ -54,8 +54,8 @@ export function probeVideo(url: string, timeoutMs: number, command = 'ffprobe'):
     });
     child.on('close', (code, signal) => {
       clearTimeout(timer);
-      if (signal) return reject(new Error(`ffprobe sem resposta em ${timeoutMs} ms`));
-      if (code !== 0) return reject(new Error(`ffprobe saiu com código ${code}: ${stderr.trim().split('\n').at(-1) ?? ''}`));
+      if (signal) return reject(new Error(`ffprobe gave no response in ${timeoutMs} ms`));
+      if (code !== 0) return reject(new Error(`ffprobe exited with code ${code}: ${stderr.trim().split('\n').at(-1) ?? ''}`));
       try {
         resolve(parseProbe(JSON.parse(stdout) as ProbeOutput));
       } catch (err) {

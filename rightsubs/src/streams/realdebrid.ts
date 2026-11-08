@@ -48,7 +48,7 @@ export class RealDebridSource implements FileSource {
       this.#rejected = true;
       logger.warn('realdebrid.token_rejected', {
         status: res.status,
-        hint: 'token do Real-Debrid inválido ou expirado — gere outro em https://real-debrid.com/apitoken, atualize RD_TOKEN no .env e reinicie',
+        hint: 'Real-Debrid token invalid or expired — create another at https://real-debrid.com/apitoken, update RD_TOKEN and restart',
       });
       return undefined;
     }
@@ -56,7 +56,7 @@ export class RealDebridSource implements FileSource {
     if (res.status === 204) return undefined;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const list = (await res.json()) as unknown;
-    if (!Array.isArray(list)) throw new Error('resposta inesperada de /downloads');
+    if (!Array.isArray(list)) throw new Error('unexpected response from /downloads');
 
     const name = query.filename.toLowerCase();
     // Same name with another size is another release: not this file.

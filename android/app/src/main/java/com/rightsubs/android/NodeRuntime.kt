@@ -38,7 +38,7 @@ class NodeRuntime(private val context: Context) {
     /** Unpacks RightSubs if this APK version was not unpacked yet and refreshes the links. */
     @Synchronized
     fun prepare(credentials: Credentials) {
-        if (!node.exists()) throw IOException("Node.js não está no APK para este aparelho (${Build.SUPPORTED_ABIS.joinToString()})")
+        if (!node.exists()) throw IOException("Node.js is not in the APK for this device (${Build.SUPPORTED_ABIS.joinToString()})")
         val stamp = installStamp()
         val marker = File(appDir, ".installed")
         if (!marker.exists() || marker.readText() != stamp) {
@@ -83,7 +83,7 @@ class NodeRuntime(private val context: Context) {
                     val entry = zip.nextEntry ?: break
                     val target = File(staging, entry.name)
                     // Zip slip: nothing may land outside the staging directory.
-                    if (!target.canonicalPath.startsWith(root)) throw IOException("entrada inválida no pacote: ${entry.name}")
+                    if (!target.canonicalPath.startsWith(root)) throw IOException("invalid entry in the bundle: ${entry.name}")
                     if (entry.isDirectory) {
                         target.mkdirs()
                     } else {
@@ -95,7 +95,7 @@ class NodeRuntime(private val context: Context) {
         }
         context.assets.open("cacert.pem").use { input -> File(staging, "cacert.pem").outputStream().use { input.copyTo(it) } }
         appDir.deleteRecursively()
-        if (!staging.renameTo(appDir)) throw IOException("não foi possível instalar o RightSubs em ${appDir.path}")
+        if (!staging.renameTo(appDir)) throw IOException("could not install RightSubs in ${appDir.path}")
     }
 
     private fun link() {
@@ -130,6 +130,6 @@ class NodeRuntime(private val context: Context) {
         )
         val tmp = File(files, "config.yaml.tmp")
         tmp.writeText(config)
-        if (!tmp.renameTo(configFile)) throw IOException("não foi possível gravar ${configFile.path}")
+        if (!tmp.renameTo(configFile)) throw IOException("could not write ${configFile.path}")
     }
 }

@@ -91,18 +91,18 @@ class AddonService : Service() {
             }
             if (!running) break
             if (restartRequested) {
-                runtime.log.note("restarting", """{"reason":"pedido pelo usuário"}""")
+                runtime.log.note("restarting", """{"reason":"requested by the user"}""")
                 failures = 0
                 continue
             }
             when (code) {
                 EXIT_CONFIG -> {
-                    runtime.log.note("stopped", """{"reason":"configuração inválida"}""")
+                    runtime.log.note("stopped", """{"reason":"invalid configuration"}""")
                     AddonState.set(AddonState.Status.CONFIG_ERROR, output.joinToString("\n"))
                     break
                 }
                 EXIT_CLEAN_RESTART -> {
-                    runtime.log.note("restarting", """{"reason":"reinício limpo para liberar memória"}""")
+                    runtime.log.note("restarting", """{"reason":"clean restart to free memory"}""")
                     pause(1_000)
                 }
                 else -> {

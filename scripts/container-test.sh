@@ -45,10 +45,10 @@ if [ "$ONLY" = all ] || [ "$ONLY" = app ]; then
         const m = x.match(/tests="(\d+)" skipped="(\d+)" failures="(\d+)" errors="(\d+)"/);
         if (m) { t += +m[1]; s += +m[2]; f += +m[3] + +m[4]; }
       }
-      console.log(`App: ${t} testes, ${f} falhas, ${s} ignorados`);
+      console.log(`App: ${t} tests, ${f} failures, ${s} skipped`);
     '
   fi
 fi
 
-if [ "$status" = 0 ]; then echo "==> TODOS OS TESTES PASSARAM"; else echo "==> HOUVE FALHAS (detalhes acima)" >&2; fi
+if [ "$status" = 0 ]; then echo "==> ALL TESTS PASSED"; else echo "==> THERE WERE FAILURES (details above)" >&2; fi
 exit "$status"

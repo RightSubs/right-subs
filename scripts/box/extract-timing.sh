@@ -1,13 +1,13 @@
-# Roda NA BOX (não no PC): mede a extração de legenda embutida como o RightSubs faz,
-# com o Node e o ffmpeg do APK instalado, sem tocar nos dados do app.
-# Preparar e rodar (pelo PC):
+# Runs ON THE BOX (not on the computer): times the embedded subtitle extraction the way RightSubs
+# does it, with the Node and ffmpeg of the installed APK, without touching the app's data.
+# Prepare and run (from the computer):
 #   BOX=<ip> sh scripts/adb.sh shell mkdir -p /data/local/tmp/rs
 #   BOX=<ip> sh scripts/adb.sh push /assets/cacert.pem /data/local/tmp/rs/
 #   BOX=<ip> sh scripts/adb.sh push /box/extract-timing.sh /data/local/tmp/rs/
-#   BOX=<ip> sh scripts/adb.sh shell sh /data/local/tmp/rs/extract-timing.sh <link direto> <faixa> <início s>...
-# O link direto é o *.download.real-debrid.com/d/… (não a página real-debrid.com/d/…).
-# Mascare a saída: | sed -E 's#https://[^ "]*download\.real-debrid[^ "]*#<url>#g'
-# Apaga tudo de /data/local/tmp/rs ao terminar.
+#   BOX=<ip> sh scripts/adb.sh shell sh /data/local/tmp/rs/extract-timing.sh <direct link> <track> <start s>...
+# The direct link is the *.download.real-debrid.com/d/… one (not the real-debrid.com/d/… page).
+# Mask the output: | sed -E 's#https://[^ "]*download\.real-debrid[^ "]*#<url>#g'
+# Deletes everything in /data/local/tmp/rs when done.
 U=$1
 TRACK=$2
 shift 2
@@ -43,6 +43,6 @@ for start in "$@"; do
   "$L/libffmpeg.so" -v verbose -threads 1 -copyts -ss "$start" -i "$U" -map 0:a:0 -c copy -to $((start + 45)) -f null - > /dev/null 2> $T/aud.txt
   aud=$(( $(now) - s ))
   bytes=$(grep -oE 'Statistics: [0-9]+ bytes read' $T/aud.txt | grep -oE '[0-9]+' | sort -n | tail -1)
-  echo "trecho ${start}s: legenda ${sub} ms (saída $code, $(grep -c -- '-->' $T/out.srt) falas) | só áudio ${aud} ms, $(( ${bytes:-0} / 1000000 )) MB"
+  echo "window ${start}s: subtitle ${sub} ms (exit $code, $(grep -c -- '-->' $T/out.srt) cues) | audio only ${aud} ms, $(( ${bytes:-0} / 1000000 )) MB"
 done
 rm -rf $T

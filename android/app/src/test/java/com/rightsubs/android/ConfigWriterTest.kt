@@ -14,8 +14,8 @@ class ConfigWriterTest {
           port: 7100
 
         languages:
-          primary: pt-BR         # idioma que você quer ver
-          secondary: en-US       # usado quando não existe legenda no principal
+          primary: pt-BR         # the language you want to watch in
+          secondary: en-US       # used when there is no subtitle in the primary
           useSecondaryWhen:
             - not_found
 

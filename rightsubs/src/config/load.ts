@@ -33,7 +33,7 @@ export function loadConfig({ configFile, envFile, env = process.env }: LoadOptio
 
   if (!existsSync(configFile)) {
     throw new ConfigError(configFile, [
-      'arquivo não encontrado — crie a partir do exemplo: cp config.example.yaml config.yaml',
+      'file not found — create it from the example: cp config.example.yaml config.yaml',
     ]);
   }
 
@@ -41,7 +41,7 @@ export function loadConfig({ configFile, envFile, env = process.env }: LoadOptio
   try {
     document = parseYaml(readFileSync(configFile, 'utf8'));
   } catch (err) {
-    throw new ConfigError(configFile, [`YAML inválido: ${(err as Error).message}`]);
+    throw new ConfigError(configFile, [`invalid YAML: ${(err as Error).message}`]);
   }
 
   const mergedEnv = { ...readEnvFile(resolvedEnvFile), ...definedOnly(env) };
@@ -83,7 +83,7 @@ function validateProviders(
 
     if (!providerType) {
       const available = PROVIDER_TYPES.map((p) => p.type).join(', ');
-      issues.push(formatIssue(`${label}.type`, `tipo "${type}" desconhecido — tipos disponíveis: ${available}`, undefined));
+      issues.push(formatIssue(`${label}.type`, `unknown type "${type}" — available types: ${available}`, undefined));
       return;
     }
     if (!enabled) {
@@ -103,13 +103,13 @@ function validateProviders(
     const options = result.data as Record<string, unknown>;
     const downloadVia = options['downloadVia'];
     if (typeof downloadVia === 'string' && !enabledIds.has(downloadVia)) {
-      issues.push(formatIssue(`${label}.downloadVia`, `provedor "${downloadVia}" não existe ou está desabilitado`, undefined));
+      issues.push(formatIssue(`${label}.downloadVia`, `provider "${downloadVia}" does not exist or is disabled`, undefined));
     }
     providers.push({ id, type, enabled, options });
   });
 
   if (issues.length === 0 && enabledIds.size === 0) {
-    issues.push(formatIssue('providers', 'nenhum provedor habilitado', undefined));
+    issues.push(formatIssue('providers', 'no provider enabled', undefined));
   }
   return { providers, issues };
 }

@@ -61,5 +61,5 @@ test('a rejected token is reported once and the source stops asking', async () =
 
 test('other failures are errors, for the locator to pass to the next source', async () => {
   await assert.rejects(rd(() => new Response('', { status: 503 })).source.locate({ filename: invite.filename }), /HTTP 503/);
-  await assert.rejects(rd(() => Response.json({ error: 'x' })).source.locate({ filename: invite.filename }), /inesperada/);
+  await assert.rejects(rd(() => Response.json({ error: 'x' })).source.locate({ filename: invite.filename }), /unexpected response/);
 });

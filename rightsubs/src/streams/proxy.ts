@@ -90,7 +90,7 @@ export class StreamProxy implements FileSource {
       const body = (await res.json()) as { streams?: unknown };
       return Array.isArray(body.streams) ? (body.streams as Stream[]) : [];
     } catch (err) {
-      const message = (err as Error).name === 'TimeoutError' ? `sem resposta em ${indexer.timeoutMs} ms` : (err as Error).message;
+      const message = (err as Error).name === 'TimeoutError' ? `no response in ${indexer.timeoutMs} ms` : (err as Error).message;
       this.#logger.warn('streams.indexer_failed', { indexer: indexer.id, type, id, message });
       return [];
     }
