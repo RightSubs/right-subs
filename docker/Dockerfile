@@ -9,7 +9,7 @@ RUN apt-get update \
 ENV ANDROID_HOME=/opt/android-sdk
 ARG CMDLINE_TOOLS=11076708
 ARG CMDLINE_TOOLS_SHA256=2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
-RUN curl -fsSLo /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip" \
+RUN curl -fsSL --retry 5 --retry-all-errors -o /tmp/clt.zip "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip" \
  && echo "${CMDLINE_TOOLS_SHA256}  /tmp/clt.zip" | sha256sum -c - \
  && mkdir -p "$ANDROID_HOME/cmdline-tools" \
  && unzip -q /tmp/clt.zip -d "$ANDROID_HOME/cmdline-tools" \
@@ -22,8 +22,8 @@ RUN yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/
 ENV ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION
 
 ARG GRADLE_VERSION=8.10.2
-RUN curl -fsSLo /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
- && echo "$(curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip.sha256")  /tmp/gradle.zip" | sha256sum -c - \
+RUN curl -fsSL --retry 5 --retry-all-errors -o /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+ && echo "$(curl -fsSL --retry 5 --retry-all-errors "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip.sha256")  /tmp/gradle.zip" | sha256sum -c - \
  && unzip -q /tmp/gradle.zip -d /opt \
  && ln -s "/opt/gradle-${GRADLE_VERSION}/bin/gradle" /usr/local/bin/gradle \
  && rm /tmp/gradle.zip
