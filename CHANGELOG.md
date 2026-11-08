@@ -4,6 +4,7 @@ Versions of the **APK** (the [VERSION](VERSION) file); the addon gets the same v
 
 ## [Unreleased]
 
+- **Downloader codes** for installing on a TV (armeabi-v7a `8965173`, arm64-v8a `8443424`, universal `1324699`): in the README and in every release's notes. They always download the newest version.
 - **VirusTotal:** every release sends its APKs to VirusTotal and its notes link to each report, with the number of detections.
 
 ## [0.2.0] — 2026-11-08

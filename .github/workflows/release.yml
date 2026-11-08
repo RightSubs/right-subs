@@ -44,6 +44,8 @@ jobs:
             exit 1
           fi
           sh scripts/release-notes.sh "$version" > "$RUNNER_TEMP/notes.md"
+          # The Downloader codes (.github/release-install.md) go in every release; VirusTotal comes after.
+          { echo; cat .github/release-install.md; } >> "$RUNNER_TEMP/notes.md"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
