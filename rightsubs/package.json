@@ -2,6 +2,7 @@
   "name": "right-subs",
   "version": "0.2.0",
   "description": "Stremio addon that delivers the right subtitle, in your language, automatically synced.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "private": true,
   "engines": {

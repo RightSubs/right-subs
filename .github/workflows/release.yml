@@ -97,10 +97,22 @@ jobs:
         with:
           subject-path: out/*.apk
 
+      # The APKs ship ffmpeg (LGPL-2.1-or-later): its exact source and our patch go with every release.
+      - name: Sources of the bundled ffmpeg
+        run: |
+          version=$(sed -n 's/^FFMPEG_VERSION=//p' scripts/build-ffmpeg.sh)
+          sha=$(sed -n 's/^FFMPEG_SHA256=//p' scripts/build-ffmpeg.sh)
+          mkdir -p "$RUNNER_TEMP/sources"
+          tarball="$RUNNER_TEMP/sources/ffmpeg-$version.tar.xz"
+          cp "build/cache/ffmpeg-$version.tar.xz" "$tarball" 2>/dev/null \
+            || curl -fsSL --retry 5 --retry-all-errors -o "$tarball" "https://ffmpeg.org/releases/ffmpeg-$version.tar.xz"
+          echo "$sha  $tarball" | sha256sum -c -
+          cp patches/ffmpeg-tls-verify.patch "$RUNNER_TEMP/sources/"
+
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/*.apk out/SHA256SUMS.txt out/BUILD-INFO.txt \
+          gh release create "$GITHUB_REF_NAME" out/*.apk out/SHA256SUMS.txt out/BUILD-INFO.txt "$RUNNER_TEMP"/sources/* \
             --title "RightSubs $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

@@ -13,6 +13,7 @@ First public release. Everything in [0.1.0](#010--2026-11-04) below is included.
 - **App in English and Portuguese:** follows the device language (on Android 13+ it can be set per app), the phone form and the credential errors included.
 - **Messages in Stremio in the primary language:** the subtitle menu entries, the on-screen notices, the translation notice and the addon description follow the primary subtitle language, in all 16 languages offered (English for any other). Before, only Portuguese or English, and following the language of the subtitle served.
 - Code, logs, configuration errors, scripts and documentation in English.
+- **License:** GNU GPL v3.0 or later. Each release also carries the source of the bundled ffmpeg (LGPL) and our patch to it.
 
 ## [0.1.0] — 2026-11-04
 

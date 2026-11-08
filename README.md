@@ -247,5 +247,15 @@ Then move `rightsubs-release.p12` out of the repository folder, to the backup (g
 
 ## Credits and licenses
 
+RightSubs is free software under the [GNU General Public License v3.0 or later](LICENSE): you may use, study, change and redistribute it, including for a fee, as long as whatever you distribute (changed or not) stays under the same license with its source code available.
+
+The APK also carries third-party software under its own licenses:
+
+| Component | License | Source |
+|---|---|---|
+| Node.js (Termux's `nodejs-lts` package) and its libraries (OpenSSL, libuv, c-ares, ICU, zlib, …) | MIT, Apache-2.0 and other permissive licenses | [Termux packages](https://github.com/termux/termux-packages); fetched by [scripts/termux-node.mjs](scripts/termux-node.mjs) |
+| ffmpeg / ffprobe 7.1.1 (minimal build, without GPL parts) | LGPL-2.1-or-later | `ffmpeg-7.1.1.tar.xz` and `ffmpeg-tls-verify.patch` attached to every release; built by [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh) |
+| `yaml`, `zod` (the addon's dependencies) | ISC, MIT | npm |
+
 - **Font:** the app uses [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) (Tokotype), under the **SIL Open Font License 1.1**, which allows embedding and redistribution. The file is the same one Stremio uses in its web app (`android/app/src/main/res/font/plus_jakarta_sans.ttf`).
 - **Colors:** the look follows the public palette of Stremio's web app. RightSubs is an independent project, **not affiliated with Stremio**.
