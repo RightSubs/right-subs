@@ -4,6 +4,10 @@ Versions of the **APK** (the [VERSION](VERSION) file); the addon gets the same v
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-08
+
+First public release. Everything in [0.1.0](#010--2026-11-04) below is included.
+
 - **Releases on GitHub:** pushing a `vX.Y.Z` tag builds, signs (organization key) and publishes the APKs, with `SHA256SUMS.txt`, `BUILD-INFO.txt` and a build provenance attestation. Fixed file names (`rightsubs-armeabi-v7a.apk`, `rightsubs-arm64-v8a.apk`, `rightsubs-universal.apk`), so `releases/latest/download/…` always points at the newest version.
 - **CI:** the unit tests run on every pull request and push to `main`.
 - **App in English and Portuguese:** follows the device language (on Android 13+ it can be set per app), the phone form and the credential errors included.
