@@ -25,18 +25,28 @@ const RETRY_MS = Number(process.env.VT_RETRY_MS ?? 60_000);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 
 let lastCall = 0;
-async function vt(url, init = {}) {
+// Returns the parsed body, or null for the statuses the caller expects (`accept`). `what` names
+// the call in errors: the upload URL is a one-time address that does not belong in the log.
+async function vt(url, { what, accept = [], ...init } = {}) {
   for (let attempt = 1; ; attempt++) {
     await sleep(lastCall + GAP_MS - Date.now());
     lastCall = Date.now();
     const res = await fetch(url, { ...init, headers: { ...init.headers, 'x-apikey': key } });
     if (res.ok) return res.json();
+    if (accept.includes(res.status)) return null;
     // Only the quota (429) and server errors are worth another try.
     if (attempt >= 4 || (res.status !== 429 && res.status < 500)) {
-      throw new Error(`VirusTotal answered ${res.status} to ${init.method ?? 'GET'} ${new URL(url).pathname}`);
+      throw new Error(`VirusTotal answered ${res.status} to ${what}`);
     }
     await sleep(RETRY_MS);
   }
+}
+
+// The file's last full scan, or null when VirusTotal does not know it yet.
+async function lastScan(hash) {
+  const body = await vt(`${API}/files/${hash}`, { what: `file ${hash}`, accept: [404] });
+  const attributes = body?.data.attributes;
+  return attributes?.last_analysis_date ? attributes.last_analysis_stats : null;
 }
 
 const names = (await readdir(dir)).filter((name) => name.endsWith('.apk')).sort();
@@ -45,25 +55,36 @@ if (names.length === 0) {
   process.exit(1);
 }
 
+// A file VirusTotal already scanned (a run again, or the same APK) is not sent twice: its last
+// scan is used. 409 = the same file is being scanned right now: wait for that scan.
 const scans = [];
 for (const name of names) {
   const bytes = await readFile(path.join(dir, name));
-  const { data: uploadUrl } = await vt(`${API}/files/upload_url`);
+  const scan = { name, sha256: createHash('sha256').update(bytes).digest('hex'), analysis: null, stats: null };
+  scans.push(scan);
+  scan.stats = await lastScan(scan.sha256);
+  if (scan.stats) {
+    console.error(`${name}: already scanned`);
+    continue;
+  }
+  const { data: uploadUrl } = await vt(`${API}/files/upload_url`, { what: 'upload_url' });
   const form = new FormData();
   form.append('file', new Blob([bytes]), name);
-  const { data } = await vt(uploadUrl, { method: 'POST', body: form });
-  scans.push({ name, sha256: createHash('sha256').update(bytes).digest('hex'), analysis: data.id, stats: null });
-  console.error(`${name}: sent`);
+  const sent = await vt(uploadUrl, { what: `upload of ${name}`, method: 'POST', body: form, accept: [409] });
+  scan.analysis = sent?.data.id ?? null;
+  console.error(`${name}: ${sent ? 'sent' : 'already being scanned'}`);
 }
 
 const deadline = Date.now() + WAIT_MS;
 while (scans.some((scan) => !scan.stats) && Date.now() < deadline) {
   for (const scan of scans.filter((s) => !s.stats)) {
-    const { data } = await vt(`${API}/analyses/${scan.analysis}`);
-    if (data.attributes.status === 'completed') {
-      scan.stats = data.attributes.stats;
-      console.error(`${scan.name}: ${scan.stats.malicious} malicious, ${scan.stats.suspicious} suspicious`);
+    if (scan.analysis) {
+      const { data } = await vt(`${API}/analyses/${scan.analysis}`, { what: `analysis of ${scan.name}` });
+      if (data.attributes.status === 'completed') scan.stats = data.attributes.stats;
+    } else {
+      scan.stats = await lastScan(scan.sha256);
     }
+    if (scan.stats) console.error(`${scan.name}: ${scan.stats.malicious} malicious, ${scan.stats.suspicious} suspicious`);
   }
 }
 
