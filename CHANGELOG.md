@@ -4,6 +4,8 @@ Versions of the **APK** (the [VERSION](VERSION) file); the addon gets the same v
 
 ## [Unreleased]
 
+- **VirusTotal:** every release sends its APKs to VirusTotal and its notes link to each report, with the number of detections.
+
 ## [0.2.0] — 2026-11-08
 
 First public release. Everything in [0.1.0](#010--2026-11-04) below is included.

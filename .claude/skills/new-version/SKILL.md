@@ -51,7 +51,8 @@ A wrong tag before the push: `git tag -d vX.Y.Z` and create it again. After the 
 ## 5. Check the release
 
 1. `gh run watch` (or the Actions tab) until the `Release` workflow finishes; on failure, show the log of the failed step and ask before fixing.
-2. On the release page: the three APKs, `SHA256SUMS.txt`, `BUILD-INFO.txt` (version X.Y.Z, the "addon:" line also X.Y.Z, commit without `+dirty`) and the notes.
+2. On the release page: the three APKs, `SHA256SUMS.txt`, `BUILD-INFO.txt` (version X.Y.Z, the "addon:" line also X.Y.Z, commit without `+dirty`), `ffmpeg-X.Y.Z.tar.xz` + `ffmpeg-tls-verify.patch` and the notes.
+   The `virustotal` job (same run, 5 to 15 minutes) adds a `## VirusTotal` table to the end of the notes. Any detection shows as a warning in the run: open the report and tell the user before anything else (usually a false positive about the Node/ffmpeg executables shipped as `.so`, reported to that vendor). If the job failed or `VT_API_KEY` is missing, the release stays published: Actions › VirusTotal › Run workflow with the tag (`gh workflow run virustotal.yml -f tag=vX.Y.Z`).
 3. **Where the version shows in the app** (check at least 1 and 2 on a device, or through `/health`):
 
    | Where | Source | How to check |

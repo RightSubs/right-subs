@@ -1,0 +1,67 @@
+# Sends the APKs of a published release to VirusTotal and adds the result (detections and a link
+# to each report) to the end of its notes. Runs after every release (release.yml) and by hand for
+# an older one: Actions › VirusTotal › Run workflow, with the tag.
+#
+# Secret (Settings › Secrets and variables › Actions › Repository secrets), see README › Releases:
+#   VT_API_KEY  a VirusTotal API key (free account). Without it the scan is skipped with a warning.
+name: VirusTotal
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    secrets:
+      VT_API_KEY:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vX.Y.Z)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.repository_owner == 'RightSubs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write # edit the release notes
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the release APKs
+        run: |
+          mkdir -p "$RUNNER_TEMP/apks"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/apks" --pattern '*.apk' --pattern SHA256SUMS.txt
+          cd "$RUNNER_TEMP/apks" && sha256sum -c SHA256SUMS.txt
+
+      - name: Scan
+        id: scan
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          if [ -z "$VT_API_KEY" ]; then
+            echo "::warning::VT_API_KEY not set: release $TAG not sent to VirusTotal (see README › Releases)"
+            exit 0
+          fi
+          node scripts/virustotal.mjs "$RUNNER_TEMP/apks" "$RUNNER_TEMP/virustotal.md"
+          cat "$RUNNER_TEMP/virustotal.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "done=1" >> "$GITHUB_OUTPUT"
+
+      # Running it again replaces the section instead of adding a second one.
+      - name: Add the result to the release notes
+        if: steps.scan.outputs.done == '1'
+        run: |
+          gh release view "$TAG" --json body -q .body | awk '/^## VirusTotal$/ { exit } { print }' > "$RUNNER_TEMP/notes.md"
+          { echo; cat "$RUNNER_TEMP/virustotal.md"; } >> "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"

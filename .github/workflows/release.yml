@@ -1,6 +1,7 @@
 # Publishes a GitHub release when a version tag (vX.Y.Z) is pushed: builds the APKs in the same
 # container as local builds, signs them with the organization's key (repository secrets) and
-# attaches them with SHA256SUMS.txt, BUILD-INFO.txt and the CHANGELOG notes of the version.
+# attaches them with SHA256SUMS.txt, BUILD-INFO.txt and the CHANGELOG notes of the version; then
+# virustotal.yml sends the APKs to VirusTotal and adds the result to the notes.
 #
 # Secrets (Settings › Secrets and variables › Actions), see README › Releases:
 #   SIGNING_KEYSTORE_BASE64    the PKCS12 keystore, base64-encoded
@@ -116,3 +117,14 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" out/*.apk out/SHA256SUMS.txt out/BUILD-INFO.txt "$RUNNER_TEMP"/sources/* \
             --title "RightSubs $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
+  # After publishing, so a VirusTotal outage never holds a release back.
+  virustotal:
+    needs: release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/virustotal.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}

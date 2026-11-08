@@ -35,7 +35,7 @@ These links always point at the newest version:
 
 **On a TV** (Google TV has no browser): install the **Downloader** app from the Play Store, type one of the links above (or its short code, when published) and install. Allow "install unknown apps" for Downloader when asked.
 
-Each release comes with `SHA256SUMS.txt` and a build provenance attestation: `gh attestation verify rightsubs-universal.apk --repo RightSubs/right-subs` confirms the APK was built from this repository by its release workflow.
+Each release comes with `SHA256SUMS.txt` and a build provenance attestation: `gh attestation verify rightsubs-universal.apk --repo RightSubs/right-subs` confirms the APK was built from this repository by its release workflow. Each APK is also sent to [VirusTotal](https://www.virustotal.com), and the release notes link to its report.
 
 ### 2. Set it up
 
@@ -199,7 +199,7 @@ While working, note each change under `[Unreleased]` in `CHANGELOG.md`. To relea
 2. `git commit -m "Version X.Y.Z"` with those files.
 3. `git tag -a vX.Y.Z -m "RightSubs X.Y.Z"` and `git push origin main vX.Y.Z`.
 
-Pushing the tag runs [.github/workflows/release.yml](.github/workflows/release.yml): it checks that the tag matches `VERSION`, builds in the same container as local builds, signs with the organization's key, runs the addon tests and the secret checks, attests the build provenance and publishes the release with the APKs, `SHA256SUMS.txt`, `BUILD-INFO.txt` and the version's `CHANGELOG` section as notes. Before the push, a wrong tag is deleted with `git tag -d vX.Y.Z`; after it, do not move the tag: release the next version.
+Pushing the tag runs [.github/workflows/release.yml](.github/workflows/release.yml): it checks that the tag matches `VERSION`, builds in the same container as local builds, signs with the organization's key, runs the addon tests and the secret checks, attests the build provenance and publishes the release with the APKs, `SHA256SUMS.txt`, `BUILD-INFO.txt`, the source of the bundled ffmpeg and the version's `CHANGELOG` section as notes. Then [.github/workflows/virustotal.yml](.github/workflows/virustotal.yml) sends the APKs to VirusTotal ([scripts/virustotal.mjs](scripts/virustotal.mjs); about 5 to 15 minutes, because of the free API's 4 requests a minute) and adds a table with the detections and the link to each report to the end of the notes. A failed scan does not undo the release: run it again in **Actions › VirusTotal › Run workflow** with the tag (it replaces the table). Before the push, a wrong tag is deleted with `git tag -d vX.Y.Z`; after it, do not move the tag: release the next version.
 
 Android's internal `versionCode` is automatic: the minutes since 1970, so it always grows and any newer build installs over an older one.
 
@@ -222,6 +222,8 @@ Then, in the repository, **Settings › Secrets and variables › Actions** (or 
 | `SIGNING_KEYSTORE_BASE64` | `base64 < rightsubs-release.p12 \| tr -d '\n'` |
 | `SIGNING_KEYSTORE_PASSWORD` | the password typed in keytool (PKCS12 uses it for the key too) |
 | `SIGNING_KEY_ALIAS` | `rightsubs` |
+
+For the VirusTotal scan, also a **repository** secret `VT_API_KEY`: the API key of a free VirusTotal account (profile › **API Key**). Without it, releases are published anyway and the scan is skipped with a warning.
 
 Then move `rightsubs-release.p12` out of the repository folder, to the backup (git ignores `*.p12`, and the commit hook refuses one). The release job runs in the `release` environment: under **Settings › Environments › release** you can require an approval before each release and keep the secrets there instead.
 
