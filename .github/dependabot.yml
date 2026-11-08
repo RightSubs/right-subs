@@ -28,5 +28,8 @@ updates:
       # is ready on the zod-4 branch.
       - dependency-name: zod
         update-types: ['version-update:semver-major']
+      # The types follow the Node the APK ships (24): newer ones would accept APIs missing on the device.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: Addon
