@@ -87,6 +87,48 @@ test('rejects a secondary language equal to the primary', () => {
   ]);
 });
 
+test('explains each kind of invalid value in plain words', () => {
+  const yaml = `${MINIMAL_YAML.replace('url: https://opensubtitles-v3.strem.io/manifest.json', 'url: not-a-url')}
+server:
+  host: ""
+  port: 70000
+log:
+  level: loud
+sync:
+  budgetSeconds: fast
+  embedded:
+    windows: 0
+cache:
+  maxSizeMB: null
+streams:
+  indexers:
+    - id: torrentio
+      url: not-a-url
+    - id: sootio
+`;
+  assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
+    'server.host: must not be empty',
+    'server.port: must be less than or equal to 65535',
+    'streams.indexers.0.url: invalid URL',
+    "streams.indexers.0.url: must be the URL of the addon's manifest.json",
+    'streams.indexers.1.url: required',
+    'sync.budgetSeconds: invalid type: expected number, got string',
+    'sync.embedded.windows: must be greater than or equal to 1',
+    'cache.maxSizeMB: invalid type: expected number, got null',
+    'log.level: invalid value "loud" — options: debug, info, warn, error',
+  ]);
+  assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig('languages:\n  primary: pt-BR\nproviders: []\n'), env: {} })), [
+    'providers: needs at least 1 item(s)',
+  ]);
+  assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig('providers:\n  - id: a\n    type: stremio-addon\n'), env: {} })), [
+    'languages: required',
+  ]);
+  assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml.replace(/\nserver:[\s\S]*/, '\n')), env: {} })), [
+    'providers[os-v3].url: invalid URL',
+    "providers[os-v3].url: must be the URL of the addon's manifest.json",
+  ]);
+});
+
 test('catches typos in option names', () => {
   const yaml = `${MINIMAL_YAML}server:\n  prot: 8000\n`;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
@@ -128,7 +170,7 @@ test('rejects duplicated provider ids', () => {
     url: https://example.com/manifest.json
 `;
   assert.deepEqual(issuesOf(() => loadConfig({ configFile: writeConfig(yaml), env: {} })), [
-    'providers.1.id: id "os-v3" repetido',
+    'providers.1.id: id "os-v3" is repeated',
   ]);
 });
 

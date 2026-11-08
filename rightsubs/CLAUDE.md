@@ -43,7 +43,7 @@ Documents: [docs/CONFIGURATION.md](docs/CONFIGURATION.md) (every option), [docs/
 
 - TypeScript with **erasable syntax** (`erasableSyntaxOnly`): no enums, namespaces or parameter properties. Relative imports with the `.ts` extension.
 - `npm run dev` runs the TS directly (Node ≥ 22.18); the device runs the compiled `dist/` (`npm run build`; TS directly would cost ~20 MB more). The APK build does `npm ci --ignore-scripts`, build and `npm prune --omit=dev`.
-- Runtime dependencies: only `yaml` and `zod` (v3). **No native modules** (Termux's Node on Android). Avoid new dependencies; if needed, small pure JS.
+- Runtime dependencies: only `yaml` and `zod` (**v3, on purpose**: zod 4 costs ~+8 MB RSS / +2.7 MB heap at rest, measured 2026-11-08, and the addon only validates its own local `config.yaml`, so GHSA-mrhx-c7xc-m3w5 does not reach it; Dependabot alert dismissed. The migration is ready on the `zod-4` branch, same error messages). **No native modules** (Termux's Node on Android). Avoid new dependencies; if needed, small pure JS.
 - HTTP with `node:http` + own router (`src/http/router.ts`), no Express/Stremio SDK.
 - Identifiers, comments, logs, error messages and docs in **English**. Text the viewer reads inside Stremio goes through `src/i18n/messages.ts` (never a hard-coded string).
 - Config: zod with plain English messages (`src/config/errors.ts`), `.strict()` objects, secrets through `${VAR}` (in the APK, process environment variables; never a file). The APK depends on the format of `config.example.yaml` (`ConfigWriterTest`) and on the list in `src/languages/languages.ts` (`LanguagesTest`): when changing either, run the app tests. A new language in `languages.ts` also needs its translation in `src/i18n/messages.ts`.

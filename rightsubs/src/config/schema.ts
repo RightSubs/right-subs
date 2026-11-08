@@ -167,7 +167,7 @@ export const configSchema = z
     const indexerIds = new Set<string>();
     config.streams.indexers.forEach((entry, index) => {
       if (indexerIds.has(entry.id)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['streams', 'indexers', index, 'id'], message: `id "${entry.id}" repetido` });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['streams', 'indexers', index, 'id'], message: `id "${entry.id}" is repeated` });
       }
       indexerIds.add(entry.id);
     });
@@ -177,7 +177,7 @@ export const configSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['providers', index, 'id'],
-          message: `id "${provider.id}" repetido`,
+          message: `id "${provider.id}" is repeated`,
         });
       }
       seen.add(provider.id);
