@@ -1,0 +1,12 @@
+# Changes to these paths need a maintainer's review: they decide what goes into the signed APK
+# (build, workflows and secrets handling, the app with the credentials) and how it is published.
+/.github/        @ThiagoVieira01
+/scripts/        @ThiagoVieira01
+/docker/         @ThiagoVieira01
+/patches/        @ThiagoVieira01
+/android/        @ThiagoVieira01
+/build.sh        @ThiagoVieira01
+/build.ps1       @ThiagoVieira01
+/test.sh         @ThiagoVieira01
+/test.ps1        @ThiagoVieira01
+/VERSION         @ThiagoVieira01
