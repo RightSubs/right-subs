@@ -21,9 +21,13 @@ RUN yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/
  && "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;${NDK_VERSION}" > /dev/null
 ENV ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION
 
+# Straight from Gradle's GitHub releases, where services.gradle.org only redirects to. The checksum is
+# pinned here, not fetched next to the file (https://gradle.org/release-checksums/); change both when
+# updating Gradle.
 ARG GRADLE_VERSION=8.10.2
-RUN curl -fsSL --retry 5 --retry-all-errors -o /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
- && echo "$(curl -fsSL --retry 5 --retry-all-errors "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip.sha256")  /tmp/gradle.zip" | sha256sum -c - \
+ARG GRADLE_SHA256=31c55713e40233a8303827ceb42ca48a47267a0ad4bab9177123121e71524c26
+RUN curl -fsSL --retry 5 --retry-all-errors -o /tmp/gradle.zip "https://github.com/gradle/gradle-distributions/releases/download/v${GRADLE_VERSION}/gradle-${GRADLE_VERSION}-bin.zip" \
+ && echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
  && unzip -q /tmp/gradle.zip -d /opt \
  && ln -s "/opt/gradle-${GRADLE_VERSION}/bin/gradle" /usr/local/bin/gradle \
  && rm /tmp/gradle.zip
