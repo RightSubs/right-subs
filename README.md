@@ -121,6 +121,8 @@ Real measured cases and the reason behind each rule: [rightsubs/docs/FINDINGS.md
 
 ## Development
 
+Want to help? Start with [CONTRIBUTING.md](CONTRIBUTING.md): setup, tests, rules and how pull requests are reviewed.
+
 ### Building the APK
 
 Requirements: **Docker** (running) and Git. Everything else (JDK, Android SDK, NDK, Gradle, Node) lives inside the container.

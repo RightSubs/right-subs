@@ -1,0 +1,32 @@
+# Version updates as pull requests; security updates are on separately (repository settings).
+# Each PR runs the CI and needs a maintainer's review like any other.
+#
+# Left out on purpose: Gradle (the Android Gradle plugin and Kotlin must match the Gradle and JDK
+# pinned in docker/Dockerfile) and the builder image (docker/Dockerfile pins and checks every tool).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: CI
+
+  - package-ecosystem: npm
+    directory: /rightsubs
+    schedule:
+      interval: monthly
+    groups:
+      # Minor and patch updates of the addon's few dependencies together; majors one by one.
+      addon:
+        update-types: [minor, patch]
+    ignore:
+      # zod stays on 3: zod 4 costs ~+8 MB of memory at rest (rightsubs/CLAUDE.md); the migration
+      # is ready on the zod-4 branch.
+      - dependency-name: zod
+        update-types: ['version-update:semver-major']
+    commit-message:
+      prefix: Addon
