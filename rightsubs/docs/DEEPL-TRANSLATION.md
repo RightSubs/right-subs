@@ -1,5 +1,7 @@
 # DeepL translation — how it works and what was measured
 
+The translator can also be Gemini or OpenRouter, in the order the user chooses: [see below](#other-services-gemini-openrouter-and-the-order).
+
 **Status:** implemented and validated on the box (Xiaomi TV Box S, Generation Z S01E01, 2026-11-03): subtitle translated from German, with the right timing and Stremio's style. This is the reference document; the short decision is in `CLAUDE.md`, the numbers of the real cases in [FINDINGS.md](FINDINGS.md) and the options in [CONFIGURATION.md](CONFIGURATION.md#translationdeepl).
 
 ## What it is and what the maintainers decided
@@ -61,20 +63,22 @@ The `subtitles.track_closed` log (`elapsedMs`, `delivered`) says whether Stremio
 
 ## What the translated subtitle looks like
 
-- **AI notice** (`src/translation/notice.ts`, texts in `src/i18n/messages.ts`): "[Subtitles machine-translated by AI (DeepL)]" in the translation's language (with "- timing not confirmed" for the unchecked translation), 4 s, at 0.5 s, again at 60 s and every 15 min, always in a free gap between cues (shortened, postponed up to 30 s or left out if there is no room). Added before caching.
+- **AI notice** (`src/translation/notice.ts`, texts in `src/i18n/messages.ts`): "[Subtitles machine-translated by AI (DeepL)]" in the translation's language (with "- timing not confirmed" for the unchecked translation), 4 s, at 0.5 s, again at 60 s and every 15 min, always in a free gap between the spoken cues (it may sit over filler cues that only hold "...", "…" or music marks: Cat's Eye S01E03 had "..." from 0 to 30 s and lost the opening notice; shortened, postponed up to 30 s or left out if there is no room). Added before caching.
 - **Stremio's color/outline:** Generation Z's DE has `<font color="#FFFFFF">` on **every** cue (2006 tags) and the player obeys the file's color, ignoring the user's style (yellow with a black outline). `translateCues` removes `<font …>`; `<i>`/`<b>` stay. It also lowers the quota used (characters sent 49,693 → 21,505). **Subtitles served without translation** may carry `<font color>`: they were not changed (to be decided).
 - **The "RightSubs: preparing subtitle, wait 30 s" entry** in the subtitle list (`src/stremio/status.ts`, route `/status/…`, in the primary language): shows while the translation is pending; the track's text is decided on request ("preparing" or "ready"). **Not checked on screen**: with the provisional subtitle, the video opens before the menu is of any use, and the track's name depends on how Stremio shows the `lang` field.
 - There is no pop-up: Stremio's addon protocol only accepts the `{id, url, lang}` list.
 
 ## What depends on how you watch (Real-Debrid, torrent, others)
 
+**TorBox** (added 2026-11-25, `streams.torbox`) gives the file's direct link like Real-Debrid does, so it is expected to behave like the Real-Debrid row; only the lookup was tested against the real API (list and link), not a whole translation.
+
 The translation itself (search in every language, DeepL, AI notice, Stremio's color, provisional subtitle) **does not depend on a debrid**. What does is the **timing check**: it reads 6 windows of the embedded track, and for that the addon needs the file's direct link, which it only gets through the **Real-Debrid** API (`/downloads`, `RealDebridSource`) or, for a torrent played by Stremio itself, through its local server (`StremioServerSource`, without reading the embedded track: `peerToPeer`). Proxy mode (indexers) is not used in the APK.
 
 | How you watch | Does the addon find the file? | Ruler (embedded track) | What the translation does |
 |---|---|---|---|
-| **Real-Debrid** | yes (`/downloads`) | **yes** (6 windows) | full flow: picks among the languages, refuses subtitles from another cut, applies the offset |
+| **Real-Debrid** or **TorBox** | yes (`/downloads`, `/torrents/mylist`) | **yes** (6 windows) | full flow: picks among the languages, refuses subtitles from another cut, applies the offset |
 | **Torrent through Stremio itself, no debrid** | yes (Stremio's local server, `/stats.json`) | **no**: reading windows of a torrent would take bandwidth from the video | ffprobe only (fps, up to 15 s). Exact subtitle by hash: translated as it is. **Movie:** "timing not confirmed" if the fps matches. **Series:** nothing |
-| **Another debrid** (AllDebrid, Premiumize, TorBox…) | **no**: there is no `FileSource` for them, and Stremio does not use the torrent server for those streams | no | no fps and no embedded track: only the **exact subtitle by hash** would be translated (as it is) |
+| **Another debrid** (AllDebrid, Premiumize…) | **no**: there is no `FileSource` for them, and Stremio does not use the torrent server for those streams | no | no fps and no embedded track: only the **exact subtitle by hash** would be translated (as it is) |
 | Direct link or another source | no | no | the same as the case above |
 
 **Test status:** only the **Real-Debrid** row was measured on the box (Generation Z, Cat's Eyes, A Murder Between Friends). The other three are a reading of the code (`FileLocator` and its sources; `EmbeddedReferences.lookup` returns "unavailable" for `peerToPeer`; `declaresVideoFps` needs ffprobe's fps) and **were not tested**.
@@ -105,6 +109,22 @@ Only in the `config.yaml` of an addon running on a computer (it does not exist i
 - DeepL key field (optional) on the screen and in the "Fill in on your phone" form; "Remove the key" on the screen. `SecretStore` keeps it (`deepl_key`, AES-GCM/Keystore), Node only gets it through `DEEPL_API_KEY`, the `Redactor` masks it. `ConfigWriter` turns `translation.deepl.enabled` on when there is a key.
 - Test builds (never distribute): `WORKING_TREE=1 PREFILL=1 DEBUG_LOG=1 sh build.sh` = the addon from the working directory (without committing), `.env` credentials inside the APK (plain text) and a log readable by adb. Details in the root `CLAUDE.md`.
 
+## Other services (Gemini, OpenRouter) and the order
+
+Added 2026-11-25. DeepL Free's 500,000 characters a month are about 20 episodes; Gemini and OpenRouter extend that. The choice of source, the timing check, the notice, the provisional subtitle and the cache are **the same**: only the last step (turning lines into translated lines) changes, behind the `Translator` interface.
+
+- **Chain** (`src/translation/fallback.ts`, wired in `src/server.ts`): `ResumableTranslator` → `FallbackTranslator` → providers in `translation.order` that are on and have a key. Each batch goes to the first provider; on any failure (quota, key, network, a wrong answer) it goes to the next, and the failure is logged (`translation.provider_failed` with `provider`, `reason`, `message`; `translation.provider` for the one that served). When none can, the last error comes out and the translation fails as before.
+- **Default order: DeepL, OpenRouter, Gemini** (2026-11-25, from the tests on the phone): DeepL never failed; the OpenRouter free tier is slow but answered when asked (50 requests a day, and when it is used up it refuses at once, so the next service takes over without waiting); the Gemini free tier answered 503 ("high demand") or timed out on most requests that afternoon, and one failure there costs 1 to 2.5 minutes before the next service gets the batch. If Gemini becomes reliable, move it up (it allows ~500 requests a day).
+- **Resume across providers:** batches are stored by their text and languages, not by provider, so the next service finishes what the previous one started. With an LLM in the chain the batch is **200 lines** (`LLM_BATCH`), not 50: the free tiers count requests per day, so fewer, larger requests stretch them (a film is ~1,700 lines: ~9 requests instead of ~35). DeepL splits a 200-line batch into its own 50-line requests. With DeepL alone nothing changes (50 lines, whole-subtitle quota check).
+- **Quota:** DeepL keeps its pre-check (`QuotaGuard`: a batch that needs more characters than are left is refused before being sent, and the next service takes it). Gemini and OpenRouter are detected **by error only** (429 / 402 = quota, 401 / 403 = key).
+- **Gemini** (`GeminiTranslator`, `src/translation/llm.ts`): `generateContent` with the key in the `x-goog-api-key` header, JSON answer (`responseSchema` = array of strings), temperature 0. **Two models, in order** (`translation.gemini.models`, default `gemini-3.1-flash-lite` then `gemini-3.5-flash-lite` (the 3.5 answered 503 more often at peak hours on 2026-11-25)): a model that answers 503 ("high demand", about half the requests on the free tier on 2026-11-25) or 429 hands the request to the next one at once (each has its own capacity and quota); when both were only busy, the round is repeated after 2, 5 and 10 s. A rejected key does not try the second model. Gemini 3 models get `thinkingConfig.thinkingLevel: minimal` (measured: both Lite models already spend 0 thinking tokens on 100 lines, so this is a guard; `thinkingBudget: 0` is refused by 3.5 with a 400, `low` spent tokens and was slower).
+- **OpenRouter** (`OpenRouterTranslator`): chat completions with `Authorization: Bearer`, the answer parsed from JSON (a Markdown fence is tolerated). One fixed model (`nvidia/nemotron-3.5-lightning:free`; the `openrouter/free` router picks a different, sometimes tiny, model each time) with `reasoning: {enabled: false}`: 130 lines took 20-29 s instead of 65-95 s. Measured on the phone, 2026-11-25: the last batch of an episode went through OpenRouter after Gemini answered 503.
+- **The LLM contract:** the lines go as a JSON array and the same number must come back, in the same order. A wrong count is retried once and then the batch fails (so the next service gets it). The prompt asks to keep line breaks and `<i>`/`<b>`.
+- **Notice:** names the service that translated ("(Gemini)"); with more than one, "(DeepL + Gemini)". The cached subtitle keeps the notice it was made with. `details.provider` follows the real service.
+- **Quota shown** (`translationProviders` in `/health`): DeepL in characters (as before); OpenRouter in requests, from its free `GET /api/v1/key` (`free_model_daily_requests`; a paid key has no daily cap and shows null); Gemini in requests, **estimated** by counting this addon's own requests since midnight Pacific time (`DailyCount`, kept in the cache dir; `gemini.dailyRequests` is the assumed limit, 500 for the free tier according to secondary sources, to confirm in AI Studio).
+- **App:** three selectors (1st/2nd/3rd) on the main screen, two more key fields in the credentials form and in "Fill in on your phone". Keys only reach Node as `GEMINI_API_KEY` and `OPENROUTER_API_KEY`; `ConfigWriter` writes `translation.order` and turns each service on when it has a key.
+- **Not measured yet:** the best batch size, the time of a whole film on each service against Stremio's 10 s / the 3 s provisional subtitle, and the quality of the free OpenRouter models. Real runs with each key are pending.
+
 ## Logs
 
 | Event | When |
@@ -127,7 +147,7 @@ Only in the `config.yaml` of an addon running on a computer (it does not exist i
 
 ## Limitations and pending items
 
-- **Without Real-Debrid there is no timing check** (Stremio torrent, other debrids, direct link): table in "What depends on how you watch". The cases without Real-Debrid were not tested.
+- **Without Real-Debrid or TorBox there is no timing check** (Stremio torrent, other debrids, direct link): table in "What depends on how you watch". The cases without Real-Debrid were not tested.
 - **Heavy files:** 6 windows read twice as much as 3; the per-window limit is capped at 120 s (`windowTimeoutMs`). On a file like Drive (23.6 GB) it may run out and fall into the unchecked path. Not measured.
 - **Stremio's limit:** between 5.9 s (worked) and 12.8 s (failed) since the 1st request; the exact value was not measured. `translationWaitMs` stays at 3 s and is not a `config.yaml` option.
 - **No embedded text track** (PGS only) or a P2P torrent: there is no way to confirm the timing; only the exact one (as it is) or one synced by another subtitle is translated. **Movies** fall into item 8 (translation with "timing not confirmed"); **series** get no subtitle (404 in 0.2 s, without telling the user).
@@ -136,3 +156,17 @@ Only in the `config.yaml` of an addon running on a computer (it does not exist i
 - **Heavy files, measured:** Cat's Eyes S01E01 2160p H.265 (7.2 GB, 59.6 min): the 6 windows read in **38.2 s** (cap 120 s), 64 reference cues, translation ready 45 s after the 1st request. The provisional message says "about 30 s": for files like that it is short (the user got the provisional one twice); consider "about 1 minute".
 - **Stepped English:** could be synced by segments, but would need the whole embedded track as the ruler (out of scope).
 - The status entry in the menu was not seen on screen; `<font color>` in untranslated subtitles stays as it came.
+
+## Quota shown to the user
+
+(With several services see [above](#other-services-gemini-openrouter-and-the-order): `translationProviders` lists each one; the `translation` field below stays as it was.)
+
+`/health` carries `translation: { provider: "deepl", used, limit }` (characters this month, read from DeepL's free `GET /v2/usage`; both null when it cannot be read, the whole field null without a key). The reading is reused for 10 minutes, a failed one is not retried for 1 minute, and every translation drops it (`UsageCache`, no timers; `/health` does not wake the addon). The app prints it under the status line (`health_deepl`, `health_deepl_used_up` when `used >= limit`). The key never leaves the Node process.
+
+## Not paying twice (resume and quota check)
+
+`ResumableTranslator` (`src/translation/resume.ts`) wraps DeepL: every batch (one request, up to 50 lines) is written to the subtitle cache the moment DeepL answers (`translated-batch:<from>><to>:<sha256 of the lines>`, 10 days), so a translation that is interrupted (the addon restarts, the phone kills the app, the quota runs out halfway) resumes with the missing batches only (`translation.resumed` logs `cached` and `characters` still to send). Real case, 2026-11-14 (Cat's Eye S01E03 on the phone): the addon restarted after 10 of 26 batches, and the retry sent the first ten again: 39,962 characters billed for a 23,874-character subtitle.
+
+Before sending anything it compares the characters still missing with what the key has left (`UsageCache`, see above): when they do not fit it refuses (`translation.failed`: "DeepL quota too low for this subtitle (needs N characters, M left)"), so quota is not burned on a subtitle that could never be finished. An unknown quota (offline, key rejected) does not block.
+
+Not done on purpose: the translation still starts when Stremio asks for the track list (the warm-up), before the player picks the track. It is what lets the subtitle be ready inside Stremio's 10 s; with the Stremio subtitle language set to the primary (README step 4) the player asks for the track anyway.

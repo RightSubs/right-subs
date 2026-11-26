@@ -25,6 +25,8 @@ export interface Messages {
   embeddedLabel: string;
   /** On screen, when that entry is picked. */
   embeddedNotice: string;
+  /** On screen, when the video's subtitle track is picked but nothing was found: a 404 would crash Stremio 2.6.0's server. */
+  unavailable: string;
   /** Shown now and then inside a machine-translated subtitle. */
   translated: string;
   /** The same, when the timing of the source subtitle could not be checked against the video. */
@@ -41,6 +43,7 @@ const en: Messages = {
   placeholder: '[RightSubs] Preparing the translated subtitle (first time for this video).\nLeave the video and open it again in about 30 s.',
   embeddedLabel: 'RightSubs: the video already has an embedded subtitle in your language, pick it in the menu',
   embeddedNotice: '[RightSubs] This video contains an embedded subtitle in your language.\nPick it in the subtitle menu (the one from the video itself).',
+  unavailable: '[RightSubs] No subtitle was found for this video.\nPick another one in the subtitle menu, or try again later.',
   translated: '[Subtitles machine-translated by AI (DeepL)]',
   translatedUnconfirmed: '[Subtitles machine-translated by AI (DeepL) - timing not confirmed]',
 };
@@ -55,6 +58,7 @@ const ptBR: Messages = {
   placeholder: '[RightSubs] Preparando a legenda traduzida (primeira vez deste vídeo).\nSaia do vídeo e abra de novo em cerca de 30 s.',
   embeddedLabel: 'RightSubs: o vídeo já tem legenda embutida no seu idioma, escolha-a no menu',
   embeddedNotice: '[RightSubs] Este vídeo contém a legenda embutida no seu idioma.\nEscolha-a no menu de legendas (a do próprio vídeo).',
+  unavailable: '[RightSubs] Nenhuma legenda foi encontrada para este vídeo.\nEscolha outra no menu de legendas ou tente de novo mais tarde.',
   translated: '[Legenda traduzida por IA (DeepL)]',
   translatedUnconfirmed: '[Legenda traduzida por IA (DeepL) - tempo não confirmado]',
 };
@@ -69,6 +73,7 @@ const ptPT: Messages = {
   placeholder: '[RightSubs] A preparar a legenda traduzida (primeira vez deste vídeo).\nSaia do vídeo e abra-o novamente dentro de cerca de 30 s.',
   embeddedLabel: 'RightSubs: o vídeo já tem legenda incorporada no seu idioma, escolha-a no menu',
   embeddedNotice: '[RightSubs] Este vídeo contém legenda incorporada no seu idioma.\nEscolha-a no menu de legendas (a do próprio vídeo).',
+  unavailable: '[RightSubs] Não foi encontrada nenhuma legenda para este vídeo.\nEscolha outra no menu de legendas ou tente novamente mais tarde.',
   translated: '[Legenda traduzida por IA (DeepL)]',
   translatedUnconfirmed: '[Legenda traduzida por IA (DeepL) - tempo não confirmado]',
 };
@@ -83,6 +88,7 @@ const es: Messages = {
   placeholder: '[RightSubs] Preparando los subtítulos traducidos (primera vez para este vídeo).\nSal del vídeo y vuelve a abrirlo en unos 30 s.',
   embeddedLabel: 'RightSubs: el vídeo ya tiene subtítulos integrados en tu idioma, elígelos en el menú',
   embeddedNotice: '[RightSubs] Este vídeo contiene subtítulos integrados en tu idioma.\nElígelos en el menú de subtítulos (los del propio vídeo).',
+  unavailable: '[RightSubs] No se encontraron subtítulos para este vídeo.\nElige otros en el menú de subtítulos o inténtalo de nuevo más tarde.',
   translated: '[Subtítulos traducidos automáticamente por IA (DeepL)]',
   translatedUnconfirmed: '[Subtítulos traducidos automáticamente por IA (DeepL) - sincronización no confirmada]',
 };
@@ -98,6 +104,7 @@ const fr: Messages = {
   embeddedLabel: 'RightSubs : la vidéo contient déjà des sous-titres intégrés dans votre langue, choisissez-les dans le menu',
   embeddedNotice:
     '[RightSubs] Cette vidéo contient des sous-titres intégrés dans votre langue.\nChoisissez-les dans le menu des sous-titres (ceux de la vidéo elle-même).',
+  unavailable: '[RightSubs] Aucun sous-titre n\'a été trouvé pour cette vidéo.\nChoisissez-en un autre dans le menu des sous-titres ou réessayez plus tard.',
   translated: '[Sous-titres traduits automatiquement par IA (DeepL)]',
   translatedUnconfirmed: '[Sous-titres traduits automatiquement par IA (DeepL) - synchronisation non confirmée]',
 };
@@ -112,6 +119,7 @@ const de: Messages = {
   placeholder: '[RightSubs] Die übersetzten Untertitel werden vorbereitet (erstes Mal für dieses Video).\nDas Video verlassen und in etwa 30 s erneut öffnen.',
   embeddedLabel: 'RightSubs: Das Video hat bereits eingebettete Untertitel in deiner Sprache, wähle sie im Menü',
   embeddedNotice: '[RightSubs] Dieses Video enthält eingebettete Untertitel in deiner Sprache.\nWähle sie im Untertitelmenü (die des Videos selbst).',
+  unavailable: '[RightSubs] Für dieses Video wurden keine Untertitel gefunden.\nWähle im Untertitelmenü andere aus oder versuche es später erneut.',
   translated: '[Untertitel per KI maschinell übersetzt (DeepL)]',
   translatedUnconfirmed: '[Untertitel per KI maschinell übersetzt (DeepL) - Timing nicht bestätigt]',
 };
@@ -126,6 +134,7 @@ const it: Messages = {
   placeholder: '[RightSubs] Preparazione dei sottotitoli tradotti (prima volta per questo video).\nEsci dal video e riaprilo tra circa 30 s.',
   embeddedLabel: 'RightSubs: il video ha già sottotitoli incorporati nella tua lingua, sceglili nel menu',
   embeddedNotice: '[RightSubs] Questo video contiene sottotitoli incorporati nella tua lingua.\nSceglili nel menu dei sottotitoli (quelli del video stesso).',
+  unavailable: '[RightSubs] Nessun sottotitolo trovato per questo video.\nScegline un altro dal menu dei sottotitoli o riprova più tardi.',
   translated: "[Sottotitoli tradotti automaticamente dall'IA (DeepL)]",
   translatedUnconfirmed: "[Sottotitoli tradotti automaticamente dall'IA (DeepL) - sincronizzazione non confermata]",
 };
@@ -140,6 +149,7 @@ const nl: Messages = {
   placeholder: '[RightSubs] De vertaalde ondertitels worden voorbereid (eerste keer voor deze video).\nSluit de video en open hem over ongeveer 30 s opnieuw.',
   embeddedLabel: 'RightSubs: de video heeft al ingebouwde ondertitels in jouw taal, kies ze in het menu',
   embeddedNotice: '[RightSubs] Deze video bevat ingebouwde ondertitels in jouw taal.\nKies ze in het ondertitelmenu (die van de video zelf).',
+  unavailable: '[RightSubs] Er zijn geen ondertitels gevonden voor deze video.\nKies andere in het ondertitelmenu of probeer het later opnieuw.',
   translated: '[Ondertitels automatisch vertaald door AI (DeepL)]',
   translatedUnconfirmed: '[Ondertitels automatisch vertaald door AI (DeepL) - timing niet bevestigd]',
 };
@@ -154,6 +164,7 @@ const pl: Messages = {
   placeholder: '[RightSubs] Przygotowywanie przetłumaczonych napisów (pierwszy raz dla tego wideo).\nWyjdź z wideo i otwórz je ponownie za około 30 s.',
   embeddedLabel: 'RightSubs: wideo ma już wbudowane napisy w twoim języku, wybierz je w menu',
   embeddedNotice: '[RightSubs] To wideo zawiera wbudowane napisy w twoim języku.\nWybierz je w menu napisów (te z samego wideo).',
+  unavailable: '[RightSubs] Nie znaleziono napisów do tego wideo.\nWybierz inne w menu napisów lub spróbuj ponownie później.',
   translated: '[Napisy przetłumaczone maszynowo przez AI (DeepL)]',
   translatedUnconfirmed: '[Napisy przetłumaczone maszynowo przez AI (DeepL) - synchronizacja niepotwierdzona]',
 };
@@ -168,6 +179,7 @@ const ru: Messages = {
   placeholder: '[RightSubs] Готовим переведённые субтитры (первый раз для этого видео).\nВыйдите из видео и откройте его снова примерно через 30 с.',
   embeddedLabel: 'RightSubs: в видео уже есть встроенные субтитры на вашем языке, выберите их в меню',
   embeddedNotice: '[RightSubs] В этом видео есть встроенные субтитры на вашем языке.\nВыберите их в меню субтитров (из самого видео).',
+  unavailable: '[RightSubs] Для этого видео субтитры не найдены.\nВыберите другие в меню субтитров или попробуйте позже.',
   translated: '[Субтитры переведены ИИ (DeepL)]',
   translatedUnconfirmed: '[Субтитры переведены ИИ (DeepL) - синхронизация не подтверждена]',
 };
@@ -182,6 +194,7 @@ const tr: Messages = {
   placeholder: '[RightSubs] Çevrilmiş altyazı hazırlanıyor (bu video için ilk kez).\nVideodan çıkın ve yaklaşık 30 sn sonra yeniden açın.',
   embeddedLabel: 'RightSubs: videoda zaten sizin dilinizde gömülü altyazı var, menüden seçin',
   embeddedNotice: '[RightSubs] Bu videoda sizin dilinizde gömülü altyazı var.\nAltyazı menüsünden seçin (videonun kendi altyazısı).',
+  unavailable: '[RightSubs] Bu video için altyazı bulunamadı.\nAltyazı menüsünden başka birini seçin veya daha sonra tekrar deneyin.',
   translated: '[Yapay zekâ ile makine çevirisi altyazı (DeepL)]',
   translatedUnconfirmed: '[Yapay zekâ ile makine çevirisi altyazı (DeepL) - zamanlama doğrulanmadı]',
 };
@@ -196,6 +209,7 @@ const ar: Messages = {
   placeholder: '[RightSubs] جارٍ تجهيز الترجمة الآلية (أول مرة لهذا الفيديو).\nاخرج من الفيديو وافتحه مجددًا بعد نحو 30 ثانية.',
   embeddedLabel: 'RightSubs: الفيديو يحتوي بالفعل على ترجمة مدمجة بلغتك، اخترها من القائمة',
   embeddedNotice: '[RightSubs] هذا الفيديو يحتوي على ترجمة مدمجة بلغتك.\nاخترها من قائمة الترجمات (ترجمة الفيديو نفسه).',
+  unavailable: '[RightSubs] لم يتم العثور على ترجمة لهذا الفيديو.\nاختر ترجمة أخرى من قائمة الترجمات أو حاول مرة أخرى لاحقًا.',
   translated: '[ترجمة آلية بالذكاء الاصطناعي (DeepL)]',
   translatedUnconfirmed: '[ترجمة آلية بالذكاء الاصطناعي (DeepL) - التوقيت غير مؤكد]',
 };
@@ -210,6 +224,7 @@ const ja: Messages = {
   placeholder: '[RightSubs] 翻訳字幕を準備しています（この動画では初回）。\n動画を閉じて、30 秒ほど後にもう一度開いてください。',
   embeddedLabel: 'RightSubs: この動画にはお使いの言語の字幕がすでに埋め込まれています。メニューで選択してください',
   embeddedNotice: '[RightSubs] この動画にはお使いの言語の埋め込み字幕があります。\n字幕メニューで選択してください（動画に含まれている字幕）。',
+  unavailable: '[RightSubs] この動画の字幕は見つかりませんでした。\n字幕メニューで別の字幕を選ぶか、後でもう一度お試しください。',
   translated: '[AI による機械翻訳字幕 (DeepL)]',
   translatedUnconfirmed: '[AI による機械翻訳字幕 (DeepL) - タイミング未確認]',
 };
@@ -224,6 +239,7 @@ const ko: Messages = {
   placeholder: '[RightSubs] 번역 자막을 준비하고 있습니다 (이 동영상은 처음).\n동영상을 닫고 약 30초 후에 다시 여세요.',
   embeddedLabel: 'RightSubs: 이 동영상에는 이미 사용자 언어의 내장 자막이 있습니다. 메뉴에서 선택하세요',
   embeddedNotice: '[RightSubs] 이 동영상에는 사용자 언어의 내장 자막이 있습니다.\n자막 메뉴에서 선택하세요 (동영상 자체 자막).',
+  unavailable: '[RightSubs] 이 동영상의 자막을 찾지 못했습니다.\n자막 메뉴에서 다른 자막을 고르거나 나중에 다시 시도하세요.',
   translated: '[AI 기계 번역 자막 (DeepL)]',
   translatedUnconfirmed: '[AI 기계 번역 자막 (DeepL) - 싱크 미확인]',
 };
@@ -237,6 +253,7 @@ const zhCN: Messages = {
   placeholder: '[RightSubs] 正在准备翻译字幕（此视频首次）。\n请退出视频，约 30 秒后重新打开。',
   embeddedLabel: 'RightSubs：视频已内嵌您语言的字幕，请在菜单中选择',
   embeddedNotice: '[RightSubs] 此视频包含您语言的内嵌字幕。\n请在字幕菜单中选择（视频自带的字幕）。',
+  unavailable: '[RightSubs] 未找到此视频的字幕。\n请在字幕菜单中选择其他字幕，或稍后再试。',
   translated: '[AI 机器翻译字幕 (DeepL)]',
   translatedUnconfirmed: '[AI 机器翻译字幕 (DeepL) - 时间轴未确认]',
 };
@@ -250,6 +267,7 @@ const zhTW: Messages = {
   placeholder: '[RightSubs] 正在準備翻譯字幕（此影片首次）。\n請退出影片，約 30 秒後重新開啟。',
   embeddedLabel: 'RightSubs：影片已內嵌您語言的字幕，請在選單中選擇',
   embeddedNotice: '[RightSubs] 此影片包含您語言的內嵌字幕。\n請在字幕選單中選擇（影片本身的字幕）。',
+  unavailable: '[RightSubs] 找不到此影片的字幕。\n請在字幕選單中選擇其他字幕，或稍後再試。',
   translated: '[AI 機器翻譯字幕 (DeepL)]',
   translatedUnconfirmed: '[AI 機器翻譯字幕 (DeepL) - 時間軸未確認]',
 };

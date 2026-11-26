@@ -11,6 +11,11 @@
     <string name="status_failed">Could not start</string>
     <string name="status_needs_setup">Enter the credentials to get started.</string>
     <string name="health_ok">Version %1$s · Node %2$s · ffmpeg: %3$s · %4$s</string>
+    <string name="health_deepl">DeepL this month: %1$s of %2$s characters used</string>
+    <string name="health_deepl_used_up">DeepL this month: %1$s of %2$s characters used. Translations are paused until it renews.</string>
+    <string name="health_openrouter">OpenRouter today: %1$s of %2$s free requests used</string>
+    <string name="health_openrouter_used_up">OpenRouter today: %1$s of %2$s free requests used. It resumes tomorrow.</string>
+    <string name="health_gemini">Gemini today (estimate): %1$s of %2$s requests made</string>
     <string name="yes">yes</string>
     <string name="no">no</string>
     <string name="mode_light">light mode</string>
@@ -21,7 +26,11 @@
     <string name="edit_credentials">Credentials</string>
     <string name="restart">Restart</string>
     <string name="show_log">Log</string>
-    <string name="first_time_note">First time for a video with no subtitle in your language: RightSubs reads a little of the video and translates with DeepL, which takes 20 to 60 s. Since Stremio gives up after 10 s, the video opens with a provisional subtitle that says so: leave the video, open it again after about 30 s and the translated subtitle shows up. From the second time on it is instant.</string>
+    <string name="clear_cache">Clear cache</string>
+    <string name="clear_cache_do">Clear</string>
+    <string name="clear_cache_confirm">Deletes the subtitles RightSubs kept (downloaded, translated and searched) and restarts the addon. Your credentials and settings stay. The next time you open each video, it is searched and translated again, which uses the quota of the subtitle and translation services.</string>
+    <string name="cache_cleared">Cache cleared</string>
+    <string name="first_time_note">First time for a video with no subtitle in your language: RightSubs reads a little of the video and translates it with an AI service (DeepL, Gemini or OpenRouter), which takes 20 to 60 s. Since Stremio gives up after 10 s, the video opens with a provisional subtitle that says so: leave the video, open it again after about 30 s and the translated subtitle shows up. From the second time on it is instant.</string>
     <string name="how_to">Install the addon with the button above: on a phone it opens Stremio Web in the browser; on a TV, open Addons › Add addon in Stremio and type the address. Then uninstall OpenSubtitles v3 so RightSubs is the only subtitle source. The service starts by itself when the device turns on.</string>
     <string name="install_tv">In Stremio, open Addons › Add addon and type %1$s (tip: the Google TV app keyboard on your phone can paste)</string>
     <string name="install_manually">Address copied. In Stremio, open Addons › Add addon and paste: %1$s</string>
@@ -36,9 +45,22 @@
     <string name="languages_hint">Primary and secondary are the subtitles you watch: for Stremio to pick RightSubs\' by itself, Stremio\'s subtitle language must be the same as the primary. The reference never shows on screen: it only helps get the timing right (most subtitles made for each file are in English).</string>
     <string name="languages_same">The secondary must differ from the primary</string>
     <string name="languages_saved">Languages saved: %1$s (reference: %2$s)</string>
+    <string name="translation_title">Order of the services</string>
+    <string name="translation_open">AI translation</string>
+    <string name="translation_page_title">AI translation of subtitles</string>
+    <string name="translation_how_title">How it works</string>
+    <string name="translation_how">When a video has no subtitle in your languages, RightSubs translates one from another language with artificial intelligence, using the services below: DeepL (a neural translator) and Gemini and OpenRouter (large language models, LLMs).\n\n• They are tried in the order you choose (1st, 2nd, 3rd), for each part of the subtitle. If the 1st is out of quota, busy or fails, the 2nd takes over right where it stopped, then the 3rd. What was already translated is kept.\n• A service without a key is skipped. Leave a place on None to use fewer services; picking a service that is already in another place moves it.\n• The first time takes a while: the video opens with a message, and after about 30 s you open it again and the translated subtitle is there.\n• The subtitle starts with a notice naming the service that translated it.\n\nSuggestion: DeepL first. It is fast and reliable (500,000 free characters a month, about 20 episodes). Gemini and OpenRouter are free AI services and cost nothing, but they are often busy and have daily limits (OpenRouter: 50 requests a day), so they work best as reserve.</string>
+    <string name="translation_keys_title">Keys of the services</string>
+    <string name="translation_summary">AI translation: %1$s</string>
+    <string name="translation_summary_off">AI translation: off (add a key in AI translation)</string>
+    <string name="back">Back</string>
+    <string name="translation_first">1st</string>
+    <string name="translation_second">2nd</string>
+    <string name="translation_third">3rd</string>
+    <string name="translation_saved">AI translation order: %1$s</string>
 
     <string name="form_intro">OpenSubtitles: create a free account at opensubtitles.com. The API key is under profile › API consumers › New consumer (tick “Allow anonymous downloads”).</string>
-    <string name="form_security">The data stays on this device only, encrypted with an Android Keystore key that never leaves it, and is sent only to OpenSubtitles, Real-Debrid and DeepL. It is not shown again once saved. Tip: to type on your phone, use the Google TV app keyboard.</string>
+    <string name="form_security">The data stays on this device only, encrypted with an Android Keystore key that never leaves it, and is sent only to OpenSubtitles, Real-Debrid, DeepL, Gemini and OpenRouter. It is not shown again once saved. Tip: to type on your phone, use the Google TV app keyboard.</string>
     <string name="hint_api_key">OpenSubtitles API key</string>
     <string name="hint_user">OpenSubtitles username (not the e-mail)</string>
     <string name="hint_password">OpenSubtitles password</string>
@@ -46,9 +68,19 @@
     <string name="hint_rd_token">Real-Debrid token (optional)</string>
     <string name="hint_keep"> — blank keeps the current one</string>
     <string name="remove_rd">Remove the Real-Debrid token</string>
+    <string name="torbox_intro">TorBox (optional, instead of or besides Real-Debrid): lets RightSubs find the video you are playing in your TorBox account and sync the subtitle with it. Token in the TorBox settings, under API.</string>
+    <string name="hint_torbox_token">TorBox token (optional)</string>
+    <string name="remove_torbox">Remove the TorBox token</string>
     <string name="deepl_intro">DeepL (optional, last resort): translates a subtitle from another language into yours when there is none in the primary or secondary. Free key at deepl.com, under Account › API Keys (it ends in “:fx”).</string>
     <string name="hint_deepl_key">DeepL key (optional)</string>
     <string name="remove_deepl">Remove the DeepL key</string>
+    <string name="gemini_intro">Gemini (optional): free key at aistudio.google.com, under Get API key. Its free tier is counted in requests per day.</string>
+    <string name="hint_gemini_key">Gemini key (optional)</string>
+    <string name="remove_gemini">Remove the Gemini key</string>
+    <string name="openrouter_intro">OpenRouter (optional): key at openrouter.ai, under Settings › Keys. Free models are limited per day.</string>
+    <string name="hint_openrouter_key">OpenRouter key (optional)</string>
+    <string name="remove_openrouter">Remove the OpenRouter key</string>
+    <string name="translation_privacy">Gemini and OpenRouter are AI services: on their free tiers the provider may use the subtitle text to train its models.</string>
     <string name="show_values">Show what I am typing</string>
     <string name="save">Save and start</string>
     <string name="cancel">Cancel</string>
@@ -77,7 +109,10 @@
     <string name="error_password_missing">Enter the OpenSubtitles password.</string>
     <string name="error_password_invalid">Invalid OpenSubtitles password.</string>
     <string name="error_rd_token_invalid">Invalid Real-Debrid token (copy it from real-debrid.com/apitoken).</string>
+    <string name="error_torbox_token_invalid">Invalid TorBox token (copy it from the TorBox settings, under API).</string>
     <string name="error_deepl_key_invalid">Invalid DeepL key (copy it from deepl.com, under Account › API Keys).</string>
+    <string name="error_gemini_key_invalid">Invalid Gemini key (copy it from aistudio.google.com, under Get API key).</string>
+    <string name="error_openrouter_key_invalid">Invalid OpenRouter key (copy it from openrouter.ai, under Settings › Keys).</string>
 
     <!-- The form the phone opens ("Fill in on your phone"), served by PhoneSetupServer. -->
     <string name="web_lang">en</string>

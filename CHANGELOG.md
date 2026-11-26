@@ -4,6 +4,15 @@ Versions of the **APK** (the [VERSION](VERSION) file); the addon gets the same v
 
 ## [Unreleased]
 
+- **TorBox:** like Real-Debrid, a TorBox token lets RightSubs find the video you are playing in your account (by name and size) and read its fps and embedded subtitle. Token field in the credentials form and in "Fill in on your phone"; both services can be filled in.
+- **More translation services:** Gemini and OpenRouter join DeepL as the last-resort translator. A new **AI translation** page (main screen) explains how it works, sets the order (1st/2nd/3rd) and holds the three keys; when a service runs out of quota or fails, the next one finishes the subtitle (what it already translated is kept). Keys go in the credentials form and in "Fill in on your phone". The AI notice in the subtitle names the service that translated, and the status line shows OpenRouter's free requests used today.
+- **Wrong-episode subtitles skipped:** a subtitle whose last line ends before 60% of the video's length is from another episode or cut, so it is skipped and the next one is tried.
+- **Background on phones:** the first start asks Android once to let RightSubs run in the background (some phones stop the addon otherwise); the README explains autostart and locking the app in recents.
+- **Translation quota and resume:** the main screen shows the DeepL characters used this month; an interrupted translation resumes where it stopped, and one the quota cannot finish is not started.
+- **Search kept on disk:** a complete search answer is reused for 6 hours, so opening the same video again, or restarting, does not call the subtitle providers again.
+- **No more Stremio crash when there is no subtitle:** Stremio 2.6.0's streaming server aborts (and the app closes) when the address of an external subtitle answers 404, which RightSubs did whenever it found nothing. It now answers a short on-screen message ("No subtitle was found for this video", in the primary language, 16 languages) instead.
+- **Clear cache button:** deletes the subtitles, searches and translations the addon kept and restarts it; credentials, settings and the log stay. It asks first, because the next time each video is opened it is searched and translated again (quotas).
+- **Secondary language optional:** pick **None** to get only the primary.
 - **Downloader codes** for installing on a TV (armeabi-v7a `8965173`, arm64-v8a `8443424`, universal `1324699`): in the README and in every release's notes. They always download the newest version.
 - **VirusTotal:** every release sends its APKs to VirusTotal and its notes link to each report, with the number of detections.
 

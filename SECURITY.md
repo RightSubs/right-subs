@@ -12,7 +12,7 @@ Only the [latest release](https://github.com/RightSubs/right-subs/releases/lates
 
 ## What matters most here
 
-- **Credentials** (OpenSubtitles, Real-Debrid, DeepL): encrypted with the Android Keystore, passed to the addon only as environment variables, and never logged ([README › Credentials security](README.md#credentials-security)).
+- **Credentials** (OpenSubtitles, Real-Debrid, TorBox, DeepL, Gemini, OpenRouter): encrypted with the Android Keystore, passed to the addon only as environment variables, and never logged ([README › Credentials security](README.md#credentials-security)).
 - **"Fill in on your phone"**: a temporary HTTP form on the local network, protected by a one-time code.
 - **The addon** answers only on `127.0.0.1`.
 - **Releases** are built and signed by GitHub Actions. Each APK has a build provenance attestation (`gh attestation verify rightsubs-universal.apk --repo RightSubs/right-subs`) and a VirusTotal report in the release notes. An APK from anywhere else may not be ours.

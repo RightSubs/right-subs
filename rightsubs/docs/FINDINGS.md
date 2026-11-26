@@ -39,6 +39,7 @@ Titles already played and measured, one per situation RightSubs must handle. Whe
 | Chef's Kiss (2026) `1080p WEB H264-RGB.mkv` | No PT online or embedded; only EN/ES online; the DeepL translation came with a corrupted `♪` (`â™ª`, 10 times) inherited from the English source | the cleanup removes the 10 (100,561 → 98,830 characters); the other accents stay intact | box (APK) | `src/subtitles/clean.ts` |
 | Creature Commandos S01E03 `Cheers to the Tin Man.mkv` (`tt26545355:1:3`) | 259 MB episode with many embedded SRT tracks, **pt-BR among them** | embedded-track notice on both Stremio requests, probe in 0.4 s, nothing searched. Before (15:42) the box's network went down (`fetch failed`): without a located file there is no probe, and the normal flow failed too | box (APK) | addon `CLAUDE.md`, item 0 |
 | Enter the Void (2010) `Extended (1080p BluRay x265 r00t).mkv` | Same cut as the DC at **24 fps**, called "Extended"; only PGS; the pt-BR declares 24 but is 23.976 | **Known limitation:** `no_reference` (expected ×0.999, ~+0.5 s; ~+9 s at the end). A case for audio syncing | phone (APK) | [below](#known-limitation-r00t-extended-phone-vlc-2026-11-01) |
+| Cat's Eye (2025) S01E03 `Occhi.Di.Gatto.1x03.Alexia.ITA.FRA.1080p.DLMux.AAC.x265-Pir8.mkv` (`tt27445242:1:3`) | 55.7 min, 25 fps, embedded FRE/ITA SRT; the only pt-BR (v3, `Cats.Eye.2025.S01E03 WEB QUiNTESSENCE`) is from a **24-minute** episode (last cue at 1421 s) | the subtitle is **not served** (`subtitles.too_short`: it ends before 60% of the video); before, it went out `low_confidence` and unsynced | phone (APK) | [below](#a-subtitle-for-a-shorter-video-cats-eye-s01e03-2026-11-14) |
 
 ## 5. `videoHash` on Real-Debrid streams — ✅ yes, in two requests
 
@@ -297,3 +298,36 @@ The case that started the DeepL translation. The final design, the constants and
 
 - Halloween Tigole BluRay 2160p: RD found it, 24 fps, YTS BluRay 2160p subtitle → `likely_synced`. User: right.
 - The White Ribbon OFT BluRay 1080p: 1st request did not find it, the 2nd found it 3.6 s later, 23.976 fps, VXT BluRay 1080p subtitle → `likely_synced`. User: right. Supports the conservative rule of not reading the video when source and resolution match.
+
+## A subtitle for a shorter video: Cat's Eye S01E03 (2026-11-14)
+
+Phone (Xiaomi, Android 16, Stremio 2.5.1). The file is a 55.7 min ITA/FRA DLMux at 25 fps with embedded FRE and ITA text tracks. The addon served the only pt-BR subtitle (OpenSubtitles v3, a WEB release) as `low_confidence`, completely out of sync.
+
+Measured offline (the repository's `align` against the embedded tracks, 6 windows of 45 s, pt-BR subtitle from v3):
+
+| Reference track | Cues | Result (±120 s) | Result (±15 min) |
+|---|---|---|---|
+| FRE full (the one the addon used; 3 windows gave only 33 cues) | 71 | confidence 0.43 × baseline 0.42 | 0.48 × 0.42, ×0.959 |
+| ITA full | 41 | 0.62 × 0.57 | 0.64 × 0.57, ×0.96 |
+
+Neither track gives a trustworthy alignment, and the offset of each window is random (from −507 s to +2387 s) with or without the 25/23.976 scale. The cause is in the subtitle itself: **it has 400 cues and its last one ends at 1421 s (23.7 min)**, in a 3339 s video. It was made for a single ~24 min episode (the file seems to join two), so no offset or rescale can sync it. Reading more windows (6 instead of 3) and trying the second embedded track were both tried and **did not help**: the reference was never the problem.
+
+Rule that came out of it (`#coversTooLittle` in `service.ts`, `MIN_COVERAGE = 0.6`): a subtitle whose last cue ends before 60% of the video's duration (ffprobe) is skipped like one that could not be downloaded, and the next candidate is tried; if none is left, nothing is served from that language (the DeepL path and the secondary language still apply). A subtitle made for the exact file is never rejected. Log: `subtitles.too_short` with `lastEndMs` and `videoMs`.
+
+Also seen on this phone: HyperOS kills the addon when the user taps "Clear all" in the recent apps (`am_kill … OneKeyClean`), and nothing restarts it until the app is opened again. See README › Install › step 5.
+
+## A 404 for a missing subtitle crashes Stremio 2.6.0 (2026-11-26)
+
+On a phone (Android 16, HyperOS) Stremio 2.6.0 closed itself on every video RightSubs had no subtitle for (Occhi di Gatto S01E06, Unexpected Family): the log showed `subtitles.unavailable` and, 36 ms later, `pthread_mutex_lock called on a destroyed mutex` then SIGABRT inside Stremio's own streaming server (`libnode.so` of `com.stremio.one`). Force-stopping RightSubs made it stop; just closing the app did not, because the foreground service keeps answering.
+
+Reproduced without a video, asking Stremio's server (port 11470, `adb forward`) for `/subtitles.srt?from=<address>`, restarting Stremio between tries:
+
+| The address answers | Stremio |
+|---|---|
+| 200, a real subtitle | works |
+| 404 from RightSubs (`subtitle_unavailable` or an unknown route) | the server dies |
+| 404 from an unrelated test server | the server dies |
+| 200 with an empty body | works (the server answers 500) |
+| 200 with a one-line subtitle | works |
+
+So the bug is Stremio's, triggered by any 404. RightSubs now answers a short on-screen message (`unavailableSrt`) instead of 404 when it found nothing. Not checked: whether older Stremio versions or the TV builds behave the same.

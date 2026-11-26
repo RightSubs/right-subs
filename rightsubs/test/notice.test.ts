@@ -41,6 +41,23 @@ test('never overlaps a real line, and is left out when the dialogue leaves no ga
   assert.ok(!notices(out).some((c) => c.startMs < 30_000), 'no gap in the first 30 s: no opening notice');
 });
 
+test('may sit over lines that only mark a silence ("...", music marks), which carry no speech', () => {
+  // Cat's Eye S01E03: "..." from 0 to 0.9 s and from 4.2 s to 30 s kept the notice out of the opening.
+  const filler = (startMs: number, endMs: number, text = '...'): Cue => ({ startMs, endMs, text });
+  const lines = [filler(0, 880), { startMs: 30_400, endMs: 33_500, text: 'Fala real' }, filler(33_760, 38_320, '…'), { startMs: 70_000, endMs: 72_000, text: 'Outra' }];
+  const found = notices(withTranslationNotice(lines, ptBR));
+  assert.deepEqual(found.map((c) => c.startMs), [500, 60_000]);
+  assert.equal(found[0]?.endMs, 4_500);
+  // Spoken lines still keep it out.
+  const spoken = notices(withTranslationNotice([{ startMs: 0, endMs: 880, text: 'Oi' }, { startMs: 1_200, endMs: 30_000, text: 'Fala' }], ptBR));
+  assert.ok(!spoken.some((c) => c.startMs < 30_000));
+  // Notes and tags around the dots are still filler; words are not.
+  for (const text of ['♪', '<i>...</i>', '. . .', '# ♪ #']) {
+    assert.equal(notices(withTranslationNotice([{ startMs: 0, endMs: 60_000, text }], ptBR))[0]?.startMs, 500, text);
+  }
+  assert.ok(!notices(withTranslationNotice([{ startMs: 0, endMs: 5_000, text: 'Música de suspense' }], ptBR)).some((c) => c.startMs === 500));
+});
+
 test('is in the language of the translation', () => {
   assert.match(noticeText(ptBR), /Legenda traduzida por IA \(DeepL\)/);
   assert.match(noticeText(it), /Sottotitoli tradotti automaticamente/);

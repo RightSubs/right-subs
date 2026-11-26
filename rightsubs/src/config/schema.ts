@@ -43,6 +43,19 @@ const realdebrid = z
     if (entry.enabled && !entry.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'required' });
   });
 
+/** Finds the file being played among the user's TorBox torrents (same idea as Real-Debrid). */
+const torbox = z
+  .object({
+    enabled: z.boolean().default(true),
+    token: z.string().min(1).optional(),
+    lookback: z.number().int().min(1).max(100).default(20),
+    timeoutMs: z.number().int().positive().default(5000),
+  })
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.enabled && !entry.token) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'required' });
+  });
+
 /** Finds torrents played without a debrid service in Stremio's local streaming server (same device). */
 const stremio = z
   .object({
@@ -69,6 +82,37 @@ const deepl = z
   .superRefine((entry, ctx) => {
     if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'required' });
   });
+
+/** Gemini (Google AI Studio key): free tier counted in requests per day, so a failure moves on to the next provider. */
+const gemini = z
+  .object({
+    enabled: z.boolean().default(false),
+    apiKey: z.string().min(1).optional(),
+    /** Tried in this order for every request: the next one when a model is busy (503) or out of quota, each has its own. */
+    models: z.array(z.string().min(1)).min(1).max(5).default(['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite']),
+    timeoutMs: z.number().int().positive().default(60000),
+    /** Only for the usage line in /health (an estimate: Google reports none); it never blocks a request. */
+    dailyRequests: z.number().int().positive().default(500),
+  })
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'required' });
+  });
+
+/** OpenRouter: one API for many models (the `:free` ones are capped per day). */
+const openrouter = z
+  .object({
+    enabled: z.boolean().default(false),
+    apiKey: z.string().min(1).optional(),
+    model: z.string().min(1).default('nvidia/nemotron-3.5-lightning:free'),
+    timeoutMs: z.number().int().positive().default(180000),
+  })
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.enabled && !entry.apiKey) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['apiKey'], message: 'required' });
+  });
+
+const translationProvider = z.enum(['deepl', 'gemini', 'openrouter']);
 
 /** Generic provider entry; type-specific options are validated by each provider type. */
 const providerEntry = z
@@ -100,6 +144,7 @@ export const configSchema = z
       .object({
         indexers: z.array(indexer).default([]),
         realdebrid: realdebrid.optional(),
+        torbox: torbox.optional(),
         stremio: stremio.optional(),
       })
       .strict()
@@ -129,7 +174,16 @@ export const configSchema = z
       })
       .strict()
       .default({}),
-    translation: z.object({ deepl: deepl.default({}) }).strict().default({}),
+    translation: z
+      .object({
+        /** Who translates first, second, third; one that is off or has run out hands over to the next. */
+        order: z.array(translationProvider).default(['deepl', 'openrouter', 'gemini']),
+        deepl: deepl.default({}),
+        gemini: gemini.default({}),
+        openrouter: openrouter.default({}),
+      })
+      .strict()
+      .default({}),
     resources: z
       .object({
         idleAfterMinutes: z.number().positive().default(10),
@@ -163,6 +217,10 @@ export const configSchema = z
         path: ['languages', 'secondary'],
         message: 'must differ from the primary language',
       });
+    }
+    const order = config.translation.order;
+    if (new Set(order).size !== order.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['translation', 'order'], message: 'a provider is listed twice' });
     }
     const indexerIds = new Set<string>();
     config.streams.indexers.forEach((entry, index) => {

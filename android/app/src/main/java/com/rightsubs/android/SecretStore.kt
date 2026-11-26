@@ -30,7 +30,7 @@ class SecretStore(context: Context) {
         return try {
             val key = existingKey() ?: return null.also { clear() }
             val values = FIELDS.map { field -> prefs.getString(field, null)?.let { decrypt(key, field, it) }.orEmpty() }
-            Credentials(values[0], values[1], values[2], values[3], values[4])
+            Credentials(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7])
         } catch (e: GeneralSecurityException) {
             clear()
             null
@@ -48,6 +48,9 @@ class SecretStore(context: Context) {
             credentials.openSubtitlesPassword,
             credentials.realDebridToken,
             credentials.deepLApiKey,
+            credentials.geminiApiKey,
+            credentials.openRouterApiKey,
+            credentials.torBoxToken,
         )
         val editor = prefs.edit()
         FIELDS.zip(values).forEach { (field, value) ->
@@ -116,6 +119,6 @@ class SecretStore(context: Context) {
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val IV_BYTES = 12
         const val TAG_BITS = 128
-        val FIELDS = listOf("os_api_key", "os_user", "os_password", "rd_token", "deepl_key")
+        val FIELDS = listOf("os_api_key", "os_user", "os_password", "rd_token", "deepl_key", "gemini_key", "openrouter_key", "torbox_token")
     }
 }

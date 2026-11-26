@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone in portrait: the translation page buttons stacked at full width. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:orientation="vertical">
+
+    <Button
+        android:id="@+id/translation_save"
+        style="@style/ActionBlockPrimary"
+        android:filterTouchesWhenObscured="true"
+        android:text="@string/save" />
+
+    <Button
+        android:id="@+id/translation_back"
+        style="@style/ActionBlock"
+        android:text="@string/back" />
+</LinearLayout>

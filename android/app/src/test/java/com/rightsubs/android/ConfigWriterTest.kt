@@ -27,6 +27,9 @@ class ConfigWriterTest {
           realdebrid:
             enabled: false
             token: ${'$'}{RD_TOKEN}
+          torbox:
+            enabled: false
+            token: ${'$'}{TORBOX_TOKEN}
           stremio:
             enabled: false
             url: http://127.0.0.1:11470
@@ -38,9 +41,16 @@ class ConfigWriterTest {
             enabled: true
 
         translation:
+          order: [deepl, gemini, openrouter]
           deepl:
             enabled: false
             apiKey: ${'$'}{DEEPL_API_KEY}
+          gemini:
+            enabled: false
+            apiKey: ${'$'}{GEMINI_API_KEY}
+          openrouter:
+            enabled: false
+            apiKey: ${'$'}{OPENROUTER_API_KEY}
     """.trimIndent()
 
     @Test
@@ -69,6 +79,39 @@ class ConfigWriterTest {
         assertEquals("    enabled: false", off[off.indexOf("  deepl:") + 1])
         // The key itself never goes into the file.
         assertTrue("    apiKey: \${DEEPL_API_KEY}" in on)
+    }
+
+    @Test
+    fun turnsGeminiAndOpenRouterOnOnlyWithTheirKeys() {
+        val off = ConfigWriter.render(sample, realDebrid = false).lines()
+        assertEquals("    enabled: false", off[off.indexOf("  gemini:") + 1])
+        assertEquals("    enabled: false", off[off.indexOf("  openrouter:") + 1])
+        val on = ConfigWriter.render(sample, realDebrid = false, gemini = true, openRouter = true).lines()
+        assertEquals("    enabled: true", on[on.indexOf("  gemini:") + 1])
+        assertEquals("    enabled: true", on[on.indexOf("  openrouter:") + 1])
+        // DeepL is its own switch, and no key ever goes into the file.
+        assertEquals("    enabled: false", on[on.indexOf("  deepl:") + 1])
+        assertTrue("    apiKey: \${GEMINI_API_KEY}" in on)
+        assertTrue("    apiKey: \${OPENROUTER_API_KEY}" in on)
+    }
+
+    @Test
+    fun turnsTorBoxOnOnlyWithATokenAndNeverWritesIt() {
+        val off = ConfigWriter.render(sample, realDebrid = true).lines()
+        assertEquals("    enabled: false", off[off.indexOf("  torbox:") + 1])
+        val on = ConfigWriter.render(sample, realDebrid = false, torBox = true).lines()
+        assertEquals("    enabled: true", on[on.indexOf("  torbox:") + 1])
+        assertEquals("    enabled: false", on[on.indexOf("  realdebrid:") + 1])
+        assertTrue("    token: \${TORBOX_TOKEN}" in on)
+    }
+
+    @Test
+    fun writesTheTranslationOrder() {
+        assertTrue("  order: [deepl, openrouter, gemini]" in ConfigWriter.render(sample, realDebrid = false).lines())
+        val order = TranslationOrder(listOf(TranslationProvider.GEMINI, null, TranslationProvider.DEEPL))
+        assertTrue("  order: [gemini, deepl]" in ConfigWriter.render(sample, realDebrid = false, translationOrder = order).lines())
+        val none = TranslationOrder(listOf(null, null, null))
+        assertTrue("  order: []" in ConfigWriter.render(sample, realDebrid = false, translationOrder = none).lines())
     }
 
     @Test

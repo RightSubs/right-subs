@@ -26,6 +26,7 @@ import android.widget.Toast
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.NumberFormat
 
 /**
  * Single screen, D-pad friendly: addon status, install in Stremio, subtitle languages, credentials, log.
@@ -46,8 +47,19 @@ class MainActivity : Activity() {
     private lateinit var password: EditText
     private lateinit var rdToken: EditText
     private lateinit var removeRd: CheckBox
+    private lateinit var torBoxToken: EditText
+    private lateinit var removeTorBox: CheckBox
     private lateinit var deepLKey: EditText
     private lateinit var removeDeepL: CheckBox
+    private lateinit var geminiKey: EditText
+    private lateinit var removeGemini: CheckBox
+    private lateinit var openRouterKey: EditText
+    private lateinit var removeOpenRouter: CheckBox
+    private lateinit var translationSpinners: List<Spinner>
+    private lateinit var translationPanel: View
+    private lateinit var translationErrors: TextView
+    private lateinit var translationSummary: TextView
+    private lateinit var showTranslationValues: CheckBox
     private lateinit var showValues: CheckBox
     private lateinit var log: TextView
     private lateinit var main: View
@@ -78,25 +90,42 @@ class MainActivity : Activity() {
         password = findViewById(R.id.password)
         rdToken = findViewById(R.id.rd_token)
         removeRd = findViewById(R.id.remove_rd)
+        torBoxToken = findViewById(R.id.torbox_token)
+        removeTorBox = findViewById(R.id.remove_torbox)
         deepLKey = findViewById(R.id.deepl_key)
         removeDeepL = findViewById(R.id.remove_deepl)
+        geminiKey = findViewById(R.id.gemini_key)
+        removeGemini = findViewById(R.id.remove_gemini)
+        openRouterKey = findViewById(R.id.openrouter_key)
+        removeOpenRouter = findViewById(R.id.remove_openrouter)
         showValues = findViewById(R.id.show_values)
+        translationPanel = findViewById(R.id.translation_panel)
+        translationErrors = findViewById(R.id.translation_errors)
+        translationSummary = findViewById(R.id.translation_summary)
+        showTranslationValues = findViewById(R.id.show_translation_values)
         log = findViewById(R.id.log)
         findViewById<TextView>(R.id.manifest_url).text = MANIFEST_URL
 
         findViewById<Button>(R.id.install_stremio).setOnClickListener { installInStremio() }
         findViewById<Button>(R.id.edit_credentials).setOnClickListener { showForm() }
         findViewById<Button>(R.id.restart).setOnClickListener { AddonService.restart(this) }
+        findViewById<Button>(R.id.clear_cache).setOnClickListener { confirmClearCache() }
         findViewById<Button>(R.id.show_log).setOnClickListener { toggleLog() }
         findViewById<Button>(R.id.save).setOnClickListener { save() }
         findViewById<Button>(R.id.cancel).setOnClickListener { hideForm() }
+        findViewById<Button>(R.id.open_translation).setOnClickListener { showTranslation() }
+        findViewById<Button>(R.id.translation_save).setOnClickListener { saveTranslation() }
+        findViewById<Button>(R.id.translation_back).setOnClickListener { hideTranslation() }
         findViewById<Button>(R.id.clear).setOnClickListener { clearCredentials() }
         phonePanel = findViewById(R.id.phone_panel)
         findViewById<Button>(R.id.phone_setup).setOnClickListener { startPhoneSetup() }
         findViewById<Button>(R.id.phone_cancel).setOnClickListener { endPhoneSetup(); showForm() }
-        showValues.setOnCheckedChangeListener { _, visible -> setSecretsVisible(visible) }
-        setSecretsVisible(false)
+        showValues.setOnCheckedChangeListener { _, visible -> setSecretsVisible(credentialFields(), visible) }
+        setSecretsVisible(credentialFields(), false)
+        showTranslationValues.setOnCheckedChangeListener { _, visible -> setSecretsVisible(translationFields(), visible) }
+        setSecretsVisible(translationFields(), false)
         setUpLanguages()
+        setUpTranslationOrder()
     }
 
     override fun onResume() {
@@ -104,10 +133,16 @@ class MainActivity : Activity() {
         AddonState.listen(onState)
         if (!store.hasCredentials()) {
             if (form.visibility != View.VISIBLE) showForm()
-        } else if (AddonState.current.status == AddonState.Status.STOPPED) {
-            AddonService.start(this)
+        } else {
+            if (AddonState.current.status == AddonState.Status.STOPPED) AddonService.start(this)
+            BackgroundRun.askOnce(this, isTv())
         }
+        updateTranslationSummary()
         checkHealth()
+    }
+
+    override fun onBackPressed() {
+        if (translationPanel.visibility == View.VISIBLE) hideTranslation() else super.onBackPressed()
     }
 
     override fun onPause() {
@@ -152,13 +187,30 @@ class MainActivity : Activity() {
                 val json = JSONObject(body)
                 val tools = json.optJSONObject("tools")
                 val ffmpeg = tools?.optJSONObject("ffmpeg")?.optBoolean("available") == true
-                getString(
+                val status = getString(
                     R.string.health_ok,
                     json.optString("version"),
                     json.optJSONObject("runtime")?.optString("node").orEmpty(),
                     getString(if (ffmpeg) R.string.yes else R.string.no),
                     getString(if (json.isNull("locator")) R.string.mode_light else R.string.mode_realdebrid),
                 )
+                // What each translation service has used, when it could be read (the addon sends nulls when not).
+                val number = NumberFormat.getIntegerInstance()
+                val quotas = json.optJSONArray("translationProviders")
+                val lines = (0 until (quotas?.length() ?: 0)).mapNotNull { index ->
+                    val quota = quotas?.optJSONObject(index) ?: return@mapNotNull null
+                    if (quota.isNull("used") || quota.isNull("limit")) return@mapNotNull null
+                    val used = quota.optLong("used")
+                    val limit = quota.optLong("limit")
+                    val text = when (quota.optString("provider")) {
+                        "deepl" -> if (used >= limit) R.string.health_deepl_used_up else R.string.health_deepl
+                        "openrouter" -> if (used >= limit) R.string.health_openrouter_used_up else R.string.health_openrouter
+                        "gemini" -> R.string.health_gemini
+                        else -> return@mapNotNull null
+                    }
+                    getString(text, number.format(used), number.format(limit))
+                }
+                (listOf(status) + lines).joinToString("\n")
             } catch (e: Exception) {
                 ""
             }
@@ -257,6 +309,118 @@ class MainActivity : Activity() {
         if (store.hasCredentials()) AddonService.restart(this)
     }
 
+    /** Three lists (1st, 2nd, 3rd), applied right away like the languages; picking a service already used elsewhere moves it. */
+    private fun setUpTranslationOrder() {
+        translationSpinners = listOf(R.id.translation_first, R.id.translation_second, R.id.translation_third).map { findViewById<Spinner>(it) }
+        val items = listOf(getString(R.string.language_none)) + TranslationProvider.entries.map { it.label }
+        translationSpinners.forEach { it.adapter = spinnerAdapter(items) }
+        showTranslationOrder(TranslationOrder.load(this))
+        // Also fires once for the initial selection: onTranslationSelected ignores what is already saved.
+        translationSpinners.forEachIndexed { place, spinner ->
+            spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) = onTranslationSelected(place, position)
+                override fun onNothingSelected(parent: AdapterView<*>) {}
+            }
+        }
+    }
+
+    private fun showTranslationOrder(order: TranslationOrder) {
+        order.places.forEachIndexed { place, provider ->
+            translationSpinners[place].setSelection(provider?.let { 1 + it.ordinal } ?: 0, false)
+        }
+    }
+
+    private fun onTranslationSelected(place: Int, position: Int) {
+        val saved = TranslationOrder.load(this)
+        val order = saved.with(place, TranslationProvider.entries.getOrNull(position - 1))
+        if (order == saved) return
+        TranslationOrder.save(this, order)
+        showTranslationOrder(order)
+        updateTranslationSummary()
+        val names = order.providers.joinToString(" › ") { it.label }.ifEmpty { getString(R.string.language_none) }
+        Toast.makeText(this, getString(R.string.translation_saved, names), Toast.LENGTH_SHORT).show()
+        if (store.hasCredentials()) AddonService.restart(this)
+    }
+
+    /** The one-line summary on the main screen: the services that have a key, in order. */
+    private fun updateTranslationSummary() {
+        val credentials = store.load()
+        val ready = TranslationOrder.load(this).providers.filter {
+            when (it) {
+                TranslationProvider.DEEPL -> credentials?.deepLApiKey?.isNotEmpty() == true
+                TranslationProvider.GEMINI -> credentials?.geminiApiKey?.isNotEmpty() == true
+                TranslationProvider.OPENROUTER -> credentials?.openRouterApiKey?.isNotEmpty() == true
+            }
+        }
+        translationSummary.text =
+            if (ready.isEmpty()) getString(R.string.translation_summary_off)
+            else getString(R.string.translation_summary, ready.joinToString(" › ") { it.label })
+    }
+
+    private fun showTranslation() {
+        val stored = store.hasCredentials()
+        val keep = if (stored) getString(R.string.hint_keep) else ""
+        deepLKey.hint = getString(R.string.hint_deepl_key) + keep
+        geminiKey.hint = getString(R.string.hint_gemini_key) + keep
+        openRouterKey.hint = getString(R.string.hint_openrouter_key) + keep
+        for (box in listOf(removeDeepL, removeGemini, removeOpenRouter)) {
+            box.isChecked = false
+            box.visibility = if (stored) View.VISIBLE else View.GONE
+        }
+        translationErrors.visibility = View.GONE
+        main.visibility = View.GONE
+        log.visibility = View.GONE
+        translationPanel.visibility = View.VISIBLE
+        translationSpinners[0].requestFocus()
+    }
+
+    private fun hideTranslation() {
+        clearTranslationFields()
+        translationPanel.visibility = View.GONE
+        main.visibility = View.VISIBLE
+        updateTranslationSummary()
+        findViewById<View>(R.id.open_translation).requestFocus()
+    }
+
+    /** Saves only the three translation keys: the other fields are blank, which keeps what is stored. */
+    private fun saveTranslation() {
+        val stored = store.load()
+        if (stored == null) {
+            hideTranslation()
+            showForm()
+            return
+        }
+        val input = CredentialsForm(
+            apiKey = "",
+            user = "",
+            password = "",
+            realDebridToken = "",
+            deepLApiKey = deepLKey.text.toString(),
+            removeDeepL = removeDeepL.isChecked,
+            geminiApiKey = geminiKey.text.toString(),
+            removeGemini = removeGemini.isChecked,
+            openRouterApiKey = openRouterKey.text.toString(),
+            removeOpenRouter = removeOpenRouter.isChecked,
+        )
+        when (val result = CredentialsValidator.validate(input, stored)) {
+            is Validation.Invalid -> {
+                translationErrors.text = result.errors.joinToString("\n") { getString(it.message) }
+                translationErrors.visibility = View.VISIBLE
+            }
+            is Validation.Ok -> {
+                store.save(result.credentials)
+                hideTranslation()
+                Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+                AddonService.restart(this)
+            }
+        }
+    }
+
+    private fun clearTranslationFields() {
+        for (field in translationFields()) field.text.clear()
+        showTranslationValues.isChecked = false
+    }
+
     private fun showForm() {
         val stored = store.hasCredentials()
         val keep = if (stored) getString(R.string.hint_keep) else ""
@@ -264,14 +428,15 @@ class MainActivity : Activity() {
         user.hint = getString(R.string.hint_user) + keep
         password.hint = getString(R.string.hint_password) + keep
         rdToken.hint = getString(R.string.hint_rd_token) + keep
-        deepLKey.hint = getString(R.string.hint_deepl_key) + keep
+        torBoxToken.hint = getString(R.string.hint_torbox_token) + keep
         removeRd.isChecked = false
         removeRd.visibility = if (stored) View.VISIBLE else View.GONE
-        removeDeepL.isChecked = false
-        removeDeepL.visibility = if (stored) View.VISIBLE else View.GONE
+        removeTorBox.isChecked = false
+        removeTorBox.visibility = if (stored) View.VISIBLE else View.GONE
         findViewById<View>(R.id.clear).visibility = if (stored) View.VISIBLE else View.GONE
         findViewById<View>(R.id.cancel).visibility = if (stored) View.VISIBLE else View.GONE
         formErrors.visibility = View.GONE
+        translationPanel.visibility = View.GONE
         main.visibility = View.GONE
         log.visibility = View.GONE
         form.visibility = View.VISIBLE
@@ -292,8 +457,8 @@ class MainActivity : Activity() {
             password = password.text.toString(),
             realDebridToken = rdToken.text.toString(),
             removeRealDebrid = removeRd.isChecked,
-            deepLApiKey = deepLKey.text.toString(),
-            removeDeepL = removeDeepL.isChecked,
+            torBoxToken = torBoxToken.text.toString(),
+            removeTorBox = removeTorBox.isChecked,
         )
         when (val result = CredentialsValidator.validate(input, store.load())) {
             is Validation.Invalid -> {
@@ -305,6 +470,7 @@ class MainActivity : Activity() {
                 hideForm()
                 Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
                 AddonService.restart(this)
+                BackgroundRun.askOnce(this, isTv())
             }
         }
     }
@@ -388,6 +554,23 @@ class MainActivity : Activity() {
         Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
     }
 
+    /** Asks first: the next time each video is opened it is searched and translated again (API quotas). */
+    private fun confirmClearCache() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.clear_cache)
+            .setMessage(R.string.clear_cache_confirm)
+            .setPositiveButton(R.string.clear_cache_do) { _, _ ->
+                if (store.hasCredentials()) {
+                    AddonService.clearCache(this)
+                } else {
+                    CacheCleaner.clear(runtime.cacheDir)
+                }
+                Toast.makeText(this, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     private fun toggleLog() {
         if (log.visibility == View.VISIBLE) {
             log.visibility = View.GONE
@@ -400,10 +583,14 @@ class MainActivity : Activity() {
         log.requestFocus()
     }
 
-    private fun setSecretsVisible(visible: Boolean) {
+    private fun credentialFields() = listOf(apiKey, password, rdToken, torBoxToken)
+
+    private fun translationFields() = listOf(deepLKey, geminiKey, openRouterKey)
+
+    private fun setSecretsVisible(fields: List<EditText>, visible: Boolean) {
         val type = InputType.TYPE_CLASS_TEXT or
             if (visible) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else InputType.TYPE_TEXT_VARIATION_PASSWORD
-        for (field in listOf(apiKey, password, rdToken, deepLKey)) {
+        for (field in fields) {
             val selection = field.selectionEnd
             field.inputType = type
             field.setSelection(selection.coerceIn(0, field.length()))
@@ -411,7 +598,7 @@ class MainActivity : Activity() {
     }
 
     private fun clearFields() {
-        for (field in listOf(apiKey, user, password, rdToken, deepLKey)) field.text.clear()
+        for (field in credentialFields() + user) field.text.clear()
         showValues.isChecked = false
     }
 

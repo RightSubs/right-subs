@@ -12,7 +12,7 @@ if (!envFile || !out) {
 
 const env = parseEnv(readFileSync(envFile, 'utf8'));
 const REQUIRED = ['OPENSUBTITLES_API_KEY', 'OPENSUBTITLES_USER', 'OPENSUBTITLES_PASSWORD'];
-const OPTIONAL = ['RD_TOKEN', 'DEEPL_API_KEY'];
+const OPTIONAL = ['RD_TOKEN', 'DEEPL_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'TORBOX_TOKEN'];
 
 const missing = REQUIRED.filter((key) => !env[key]);
 if (missing.length > 0) {

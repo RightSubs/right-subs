@@ -24,27 +24,38 @@ const SEARCH_MS = 30_000;
  * the source subtitle could not be checked against the video, it says so: the viewer must
  * know the subtitle may be early or late.
  */
-export function noticeText(target: Language, timingUnconfirmed = false): string {
+export function noticeText(target: Language, timingUnconfirmed = false, providers: string[] = []): string {
   const messages = messagesFor(target);
-  return timingUnconfirmed ? messages.translatedUnconfirmed : messages.translated;
+  const text = timingUnconfirmed ? messages.translatedUnconfirmed : messages.translated;
+  // The messages name DeepL; the provider(s) that really translated take its place.
+  return providers.length > 0 ? text.replace('DeepL', providers.join(' + ')) : text;
 }
 
 /**
  * Puts lines in a machine-translated subtitle saying so (at the start, again after a
  * minute and every 15 minutes), so nobody takes it for a human translation. Each one goes
- * in a gap between the real lines: cut short to fit, and left out when there is no room.
+ * in a gap between the spoken lines (it may overlap filler lines such as "..."): cut short to
+ * fit, and left out when there is no room.
  */
-export function withTranslationNotice(cues: Cue[], target: Language, timingUnconfirmed = false): Cue[] {
+export function withTranslationNotice(cues: Cue[], target: Language, timingUnconfirmed = false, providers: string[] = []): Cue[] {
   const end = cues[cues.length - 1]?.endMs ?? 0;
   const planned = [FIRST_MS, SECOND_MS];
   for (let at = REPEAT_EVERY_MS; at < end; at += REPEAT_EVERY_MS) planned.push(at);
-  const text = noticeText(target, timingUnconfirmed);
+  const text = noticeText(target, timingUnconfirmed, providers);
+  // Filler lines carry no speech, so the notice may sit over them: a long stretch of "..."
+  // would otherwise leave no gap at the start (Cat's Eye S01E03: the opening notice was lost).
+  const spoken = cues.filter((cue) => !isFiller(cue.text));
   const notices: Cue[] = [];
   for (const from of planned) {
-    const slot = freeSlot(cues, from);
+    const slot = freeSlot(spoken, from);
     if (slot) notices.push({ ...slot, text });
   }
   return [...cues, ...notices].sort((a, b) => a.startMs - b.startMs);
+}
+
+/** A line with only dots, ellipsis or music marks (after the tags): a silence marker, not speech. */
+function isFiller(text: string): boolean {
+  return /^[\s.…♪♫♬♩♭♯#]*$/.test(text.replace(/<[^>]*>/g, ''));
 }
 
 /** The first stretch at or after `from` (within SEARCH_MS) that the real lines leave free for a readable notice. */

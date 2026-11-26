@@ -414,6 +414,115 @@ test('does not rescale when the subtitle declares a frame rate that is not a rea
   assert.ok(lines.some((l) => l.includes('"status":"no_reference"')));
 });
 
+/** Two services over one cache folder, like the addon before and after a restart. */
+function twoRuns(candidates: SubtitleCandidate[], files: Record<string, Buffer>, searchFails = false) {
+  const dir = mkdtempSync(join(tmpdir(), 'rightsubs-cache-'));
+  const build = () => {
+    const api = fakeProvider('api', candidates, files);
+    if (searchFails) api.provider.search = async () => { throw new Error('API down'); };
+    const lines: string[] = [];
+    const instance = new SubtitleService({
+      providers: [api.provider],
+      primary: ptBR,
+      secondary: en,
+      cache: new SubtitleCache(dir),
+      logger: createLogger('debug', (line) => lines.push(line)),
+      budgetMs: 5000,
+      beginJob: () => () => {},
+      sync: { enabled: true, minConfidence: 0.7 },
+    });
+    return { instance, api, lines };
+  };
+  return { first: build(), second: build() };
+}
+
+test('a search answer is kept on disk: asking again after a restart does not call the providers', async () => {
+  const { first, second } = twoRuns([shortPt], { 'pt-short': dialogue('Olá') });
+  assert.equal(await first.instance.chooseLanguage(movie), ptBR);
+  assert.equal(first.api.searches.length, 1);
+  assert.equal(await second.instance.chooseLanguage(movie), ptBR, 'the same choice');
+  assert.equal(second.api.searches.length, 0, 'no provider was asked');
+  assert.ok(second.lines.some((l) => l.includes('search.cached')));
+});
+
+test('the cached candidates keep their languages and fields', async () => {
+  const { first, second } = twoRuns([{ ...shortPt, fps: 25, hashMatch: true }, { providerId: 'api', ref: 'en-1', language: en, releaseName: 'Valkyrie.2008.WEB.XYZ' }], {
+    'pt-short': dialogue('Olá'),
+  });
+  await first.instance.chooseLanguage(movie);
+  await second.instance.chooseLanguage(movie);
+  assert.ok(second.lines.some((l) => l.includes('"candidates":{"pt-BR":1,"en":1}')), second.lines.join(' | '));
+});
+
+test('an empty answer or a provider that failed is not kept: the next request asks again', async () => {
+  const empty = twoRuns([], {});
+  await empty.first.instance.chooseLanguage(movie);
+  await empty.second.instance.chooseLanguage(movie);
+  assert.equal(empty.second.api.searches.length, 1, 'nothing was found, so it is asked again');
+  const down = twoRuns([shortPt], { 'pt-short': dialogue('Olá') }, true);
+  await down.first.instance.chooseLanguage(movie);
+  await down.second.instance.chooseLanguage(movie);
+  assert.ok(!down.second.lines.some((l) => l.includes('search.cached')), 'an outage is not remembered');
+});
+
+test('a search kept for too long is asked again', async (context) => {
+  const { first, second } = twoRuns([shortPt], { 'pt-short': dialogue('Olá') });
+  await first.instance.chooseLanguage(movie);
+  const real = Date.now;
+  context.mock.method(Date, 'now', () => real() + 7 * 60 * 60 * 1000);
+  await second.instance.chooseLanguage(movie);
+  assert.equal(second.api.searches.length, 1);
+});
+
+/** A service whose video runs `durationMs` (dialogue() ends at ~376 s; a scale of 10 makes it run for an hour). */
+function coverageService(candidates: SubtitleCandidate[], files: Record<string, Buffer>, durationMs: number | undefined) {
+  const api = fakeProvider('api', candidates, files);
+  const lines: string[] = [];
+  const instance = new SubtitleService({
+    providers: [api.provider],
+    primary: ptBR,
+    secondary: en,
+    cache: new SubtitleCache(mkdtempSync(join(tmpdir(), 'rightsubs-cache-'))),
+    logger: createLogger('debug', (line) => lines.push(line)),
+    budgetMs: 5000,
+    beginJob: () => () => {},
+    sync: { enabled: true, minConfidence: 0.7 },
+    inspect: async () => ({ fps: 23.976, ...(durationMs ? { durationMs } : {}), subtitleTracks: [] }),
+  });
+  return { instance, lines, api };
+}
+
+const shortPt = { providerId: 'api', ref: 'pt-short', language: ptBR, releaseName: 'Valkyrie.2008.BluRay.BLUDV' };
+const fullPt = { providerId: 'api', ref: 'pt-full', language: ptBR, releaseName: 'Valkyrie.2008.WEB.XYZ' };
+
+test('a subtitle that ends long before the video is skipped for the next candidate', async () => {
+  // Cat's Eye S01E03: a 24-minute subtitle for a 55-minute file cannot be synced by any offset.
+  const { instance, lines } = coverageService([shortPt, fullPt], { 'pt-short': dialogue('Curta'), 'pt-full': dialogue('Longa', { scale: 10 }) }, 3_600_000);
+  const srt = (await instance.prepare({ ...movie, language: ptBR }))?.toString() ?? '';
+  assert.match(srt, /Longa 0/);
+  assert.ok(!srt.includes('Curta'));
+  const skipped = lines.find((l) => l.includes('subtitles.too_short')) ?? '';
+  assert.match(skipped, /"release":"Valkyrie.2008.BluRay.BLUDV"/);
+  assert.match(skipped, /"videoMs":3600000/);
+});
+
+test('with only subtitles that fall short of the video, none is served', async () => {
+  const { instance } = coverageService([shortPt], { 'pt-short': dialogue('Curta') }, 3_600_000);
+  assert.equal(await instance.prepare({ ...movie, language: ptBR }), undefined);
+});
+
+test('a subtitle made for this exact file is never rejected for its length', async () => {
+  const exactPt = { providerId: 'api', ref: 'pt-exact', language: ptBR, releaseName: 'Valkyrie.2008.1080p.BluRay.x265-GEGE' };
+  const { instance, lines } = coverageService([exactPt], { 'pt-exact': dialogue('Exata') }, 3_600_000);
+  assert.match((await instance.prepare({ ...movie, language: ptBR }))?.toString() ?? '', /Exata 0/);
+  assert.ok(!lines.some((l) => l.includes('subtitles.too_short')));
+});
+
+test('without the video duration the length of a subtitle is not checked', async () => {
+  const { instance } = coverageService([shortPt], { 'pt-short': dialogue('Curta') }, undefined);
+  assert.match((await instance.prepare({ ...movie, language: ptBR }))?.toString() ?? '', /Curta 0/);
+});
+
 /** Embedded-reference double: becomes ready after `delayMs`, with the given reference text. */
 function fakeEmbedded(reference: Buffer, delayMs: number) {
   let ready = false;
@@ -444,7 +553,7 @@ function embeddedService(embedded: ReturnType<typeof fakeEmbedded>, budgetMs: nu
     budgetMs,
     beginJob: () => () => {},
     sync: { enabled: true, minConfidence: 0.7 },
-    inspect: async () => ({ fps: 23.976, durationMs: 3_600_000, subtitleTracks: [{ index: 5, codec: 'subrip', language: 'eng' }] }),
+    inspect: async () => ({ fps: 23.976, durationMs: 500_000, subtitleTracks: [{ index: 5, codec: 'subrip', language: 'eng' }] }),
     embedded,
   });
   return { instance, lines, api };
@@ -516,7 +625,7 @@ test('a subtitle of the same source and resolution as the file is not checked ag
       budgetMs: 5000,
       beginJob: () => () => {},
       sync: { enabled: true, minConfidence: 0.7 },
-      inspect: async () => ({ fps: 23.976, durationMs: 3_600_000, subtitleTracks: [{ index: 4, codec: 'subrip', language: 'fre' }] }),
+      inspect: async () => ({ fps: 23.976, durationMs: 500_000, subtitleTracks: [{ index: 4, codec: 'subrip', language: 'fre' }] }),
       embedded,
     });
     await instance.prepare({ ...movie, filename: QTZ, language: ptBR });
@@ -643,7 +752,7 @@ function translatingService(
     budgetMs: 5000,
     beginJob: () => () => {},
     sync: { enabled: true, minConfidence: 0.7 },
-    inspect: async () => ({ fps: 23.976, durationMs: 3_600_000, subtitleTracks: [{ index: 5, codec: 'subrip', language: 'fre' }] }),
+    inspect: async () => ({ fps: 23.976, durationMs: 500_000, subtitleTracks: [{ index: 5, codec: 'subrip', language: 'fre' }] }),
     translator,
     ...(embedded ? { embedded } : {}),
     ...extra,
@@ -1022,7 +1131,7 @@ function inspectingService(tracks: { index: number; codec: string; language?: st
     budgetMs: 5000,
     beginJob: () => () => {},
     sync: { enabled: true, minConfidence: 0.7 },
-    inspect: async () => ({ fps: 23.976, durationMs: 3_600_000, subtitleTracks: tracks }),
+    inspect: async () => ({ fps: 23.976, durationMs: 500_000, subtitleTracks: tracks }),
   });
   return { instance, lines, api };
 }

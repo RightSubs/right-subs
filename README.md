@@ -42,12 +42,22 @@ Each release comes with `SHA256SUMS.txt` and a build provenance attestation: `gh
 
 ### 2. Set it up
 
-**First, prepare** a free OpenSubtitles account (opensubtitles.com): profile → **API consumers** → **New consumer** (name `RightSubs`, tick **Allow anonymous downloads**) and note the **API key**, the **username** (not the e-mail: the login is refused with an e-mail) and the password. Real-Debrid is optional: token at real-debrid.com/apitoken. So is DeepL: a free key at deepl.com (Account › API Keys, it ends in `:fx`; 500,000 characters a month) lets RightSubs translate a subtitle when none exists in your languages.
+**First, prepare** a free OpenSubtitles account (opensubtitles.com): profile → **API consumers** → **New consumer** (name `RightSubs`, tick **Allow anonymous downloads**) and note the **API key**, the **username** (not the e-mail: the login is refused with an e-mail) and the password. Real-Debrid is optional: token at real-debrid.com/apitoken. So is TorBox, if that is your debrid: the token is in the TorBox settings, under API. So is a translator: a free DeepL key at deepl.com (Account › API Keys, it ends in `:fx`; 500,000 characters a month) lets RightSubs translate a subtitle when none exists in your languages. Gemini (a free key at aistudio.google.com) and OpenRouter (openrouter.ai) do the same, and you can use more than one: on the main screen, **AI translation** opens a page that explains how it works and sets the order (1st, 2nd, 3rd) and the keys, and when one runs out of quota or fails, the next takes over. Their free tiers may let the provider use the subtitle text to train its models.
 
 1. If the old Termux RightSubs is installed on the box, remove it first (in Termux: `sh ~/right-subs/scripts/uninstall-termux.sh`): both would use port 7000.
-2. Open **RightSubs** and fill in the credentials. Easiest: tap **Fill in on your phone**, point the phone's camera (on the same Wi-Fi) at the QR code and fill in or paste the values in the browser. The Google TV app keyboard (remote › keyboard) works too. **Without Real-Debrid, leave the token blank:** torrents played by Stremio itself are found too (real fps; without the embedded subtitle as reference).
+2. Open **RightSubs** and fill in the credentials. Easiest: tap **Fill in on your phone**, point the phone's camera (on the same Wi-Fi) at the QR code and fill in or paste the values in the browser. The Google TV app keyboard (remote › keyboard) works too. **Without Real-Debrid or TorBox, leave the token blank:** torrents played by Stremio itself are found too (real fps; without the embedded subtitle as reference).
 3. Install the addon in Stremio. **On a TV:** in Stremio, open **Addons › Add addon** and type `http://127.0.0.1:7000/manifest.json` (with `http`, not `https`; the **Install in Stremio** button shows this reminder). The remote cannot paste: to avoid typing letter by letter, use the **Google TV** app keyboard on your phone (remote › keyboard), which can paste. **On a phone:** the button opens Stremio Web in the browser with the addon ready to install. A `stremio://` link does not work, because Stremio turns `stremio://` into `https://` and the addon only answers on `http` (checked on an NVIDIA Shield, Stremio 1.12.0). Nothing needs uninstalling: Torrentio/Sootio and the subtitle addons (OpenSubtitles v3 etc.) stay installed, and RightSubs' track shows up next to theirs. On other devices of the same Stremio account, RightSubs (which only exists on this device) does not answer and the other addons keep working.
-4. Under **Subtitle languages**, pick the primary and the secondary, which are the subtitles you watch (default: Brazilian and European Portuguese), and the **reference for syncing** (default: English). The reference never shows on screen: subtitles in that language made for the exact file help get the timing right, and the embedded track in that language is preferred. The change applies at once (the addon restarts). In Stremio, set the subtitle language to the primary, so it picks RightSubs' track by itself.
+4. Under **Subtitle languages**, pick the primary and the secondary, which are the subtitles you watch (default: Brazilian and European Portuguese; the secondary is optional, pick **None** to get only the primary), and the **reference for syncing** (default: English). The reference never shows on screen: subtitles in that language made for the exact file help get the timing right, and the embedded track in that language is preferred. The change applies at once (the addon restarts). In Stremio, set the subtitle language to the primary, so it picks RightSubs' track by itself.
+5. **On a phone, let RightSubs run in the background.** Some Android versions (Xiaomi HyperOS/MIUI, Samsung, OPPO, etc.) freeze or stop apps that are not on screen, and the addon stops answering Stremio: the subtitle simply never shows up.
+   - On the first start RightSubs asks Android to **let it always run in the background**: tap **Allow**. If you refused it, or the phone did not show it, set it yourself in **Settings › Apps › RightSubs**: **Battery saver** (or **Battery**) to **No restrictions**.
+   - Turn on **Autostart** (**Start automatically** on some brands) in the same place, so the addon comes back after a reboot. No app can do this for you.
+   - **Lock RightSubs in the recent apps** (open the recents, hold the app's card and tap the padlock, or the menu next to it). The phone's **Clear all** button (HyperOS: "Clean up") stops every app that is not locked, and nothing restarts the addon until you open RightSubs again.
+
+   TV boxes do not need any of this.
+
+With a DeepL key, the main screen also shows how many of its characters you have used this month (the free plan allows 500,000), so you know before translations stop. It does the same for OpenRouter (free requests used today) and Gemini (requests made today, an estimate: Google does not report it).
+
+**Clear cache** (main screen) deletes the subtitles RightSubs kept (downloaded, translated and searched) and restarts the addon. Your credentials, settings and log stay. The next time you open each video it is searched and translated again, which uses the quota of OpenSubtitles and of the translation services, so it is only worth it to start over (for example to test) or after a bad subtitle was kept.
 
 The service starts by itself when the box turns on and after every app update. The "Addon running" notification is what keeps Android from stopping it.
 
@@ -57,7 +67,7 @@ Install the new APK over the old one (from the same place: releases install over
 
 ## Credentials security
 
-- **Storage:** OpenSubtitles API key, username and password, Real-Debrid token and DeepL key (the last two optional) are encrypted with AES-256-GCM. The key is generated inside the **Android Keystore** (in hardware when the device has it; StrongBox when it exists) and cannot be exported: the encrypted file is useless off this device. Each field is bound to its name (AAD), so one cannot be swapped for another.
+- **Storage:** OpenSubtitles API key, username and password, Real-Debrid and TorBox tokens and the DeepL, Gemini and OpenRouter keys (all but the first three optional) are encrypted with AES-256-GCM. The key is generated inside the **Android Keystore** (in hardware when the device has it; StrongBox when it exists) and cannot be exported: the encrypted file is useless off this device. Each field is bound to its name (AAD), so one cannot be swapped for another.
 - **Nothing in plain text on disk:** there is no `.env`. The generated `config.yaml` keeps the `${VAR}` placeholders and the values reach Node only as environment variables of the process (on Android, only the app itself sees them). They never go on the command line.
 - **No backup:** `allowBackup=false` and empty extraction rules: nothing goes to the cloud backup or to device-to-device transfer.
 - **Screen:** `FLAG_SECURE` (no screenshot, recording, casting or thumbnail in recents); fields with hidden text, no keyboard suggestions or learning (`flagNoPersonalizedLearning`), no autofill (other apps do not get the values) and no saving of the content in the screen's saved state. Once saved, the values **never show again**: editing only replaces (a blank field keeps the current one). "Delete credentials" deletes the encrypted data and the Keystore key itself.
@@ -73,6 +83,8 @@ Install the new APK over the old one (from the same place: releases install over
 
 Without such a track in the file, RightSubs offers Stremio **one** track in the primary language (with no subtitle at all in it, in the secondary). To choose, it compares each subtitle with the file that is playing: hash, release name, **edition** (DC, Extended, Uncut, Unrated, Theatrical, IMAX), group, source (BluRay/WEB/HDTV/DVD), resolution and fps.
 
+A subtitle that ends long before the video does (its last line before 60% of the runtime) is from another episode or cut, so it is skipped and the next one is tried.
+
 If the subtitle was made for another release, it fixes the timing (offset and fps) against a reference. It stops at the first option that exists:
 
 | # | Reference | In the log (`subtitles.served`) |
@@ -85,36 +97,36 @@ If the subtitle was made for another release, it fixes the timing (offset and fp
 
 **Text cleanup:** every subtitle served, from any source, goes through a cleanup that removes musical notes (♪ ♫ ♬… and the corrupted form `â™ª`), invalid or invisible characters, `#` used as a music mark and leftover ASS codes (`{\an8}`, `\N`). Without it, the TV draws little boxes in songs.
 
-The file that is playing is found through Real-Debrid. In a torrent without Real-Debrid, it is found through Stremio's local server: then only the fps is read, without the embedded track, because reading windows of the torrent takes bandwidth from the video.
+The file that is playing is found through Real-Debrid or TorBox. In a torrent without Real-Debrid, it is found through Stremio's local server: then only the fps is read, without the embedded track, because reading windows of the torrent takes bandwidth from the video.
 
 **Known limitations:**
 - With no text reference at all, the subtitle goes out as downloaded (`no_reference`). That holds even if the fps reported by OpenSubtitles is wrong or the edition has another name (e.g. "Extended" = "DC"). Only syncing by audio, not done yet, would fix it.
 - The secondary only comes in when there is **no subtitle at all** in the primary; an out-of-sync primary subtitle does not switch to the secondary.
 
-### No subtitle in your languages: DeepL translation (optional)
+### No subtitle in your languages: translation (optional)
 
-With a DeepL key, if there is no subtitle in the primary or the secondary language, RightSubs translates an OpenSubtitles subtitle in **any language** into the primary. It only translates a subtitle whose timing the file's embedded track confirms (it reads 6 short windows, never the whole movie): subtitles made for another cut of the movie, even in English, are refused. The translation says "[Subtitles machine-translated by AI (DeepL)]" (in your language) and uses your Stremio's subtitle style.
+With a DeepL, Gemini or OpenRouter key, if there is no subtitle in the primary or the secondary language, RightSubs translates an OpenSubtitles subtitle in **any language** into the primary. It only translates a subtitle whose timing the file's embedded track confirms (it reads 6 short windows, never the whole movie): subtitles made for another cut of the movie, even in English, are refused. The translation says "[Subtitles machine-translated by AI (DeepL)]" (in your language, with the name of the service that translated) and uses your Stremio's subtitle style.
 
-**What depends on Real-Debrid:** not the translation itself, but **checking the subtitle's timing** does, because RightSubs needs to read a few windows of the video and only gets the file's link through Real-Debrid.
+**What depends on Real-Debrid or TorBox:** not the translation itself, but **checking the subtitle's timing** does, because RightSubs needs to read a few windows of the video and only gets the file's link through one of them.
 
 | How you watch | Timing check | What the translation does |
 |---|---|---|
-| **Real-Debrid** | yes | full: picks the right subtitle among the languages and fixes the timing |
+| **Real-Debrid** or **TorBox** | yes | full: picks the right subtitle among the languages and fixes the timing |
 | **Torrent through Stremio itself** (no debrid) | no | exact subtitle by hash: translated as it is; **movie**: translated with "timing not confirmed"; **series**: nothing |
-| **Another debrid** (AllDebrid, Premiumize, TorBox…) or a direct link | no | only the exact subtitle by hash |
+| **Another debrid** (AllDebrid, Premiumize…) or a direct link | no | only the exact subtitle by hash |
 
-Only the Real-Debrid case was really tested; the others are what the code does.
+Only the Real-Debrid case was really tested (TorBox: only the file lookup, against the real API); the others are what the code does.
 
 **Movies without an embedded subtitle to check the timing** are translated too, as long as the subtitle's fps is the file's, but the subtitle says "timing not confirmed" and may come early or late. Series (episodes have cuts and ads) are not.
 
 **The first time for a movie or episode** the translation takes 20 to 60 s, longer than the 10 s Stremio waits. The video opens with a provisional subtitle asking you to **leave and open it again in about 30 s**; the translation finishes in the background and, from the second time on, comes out at once.
 
-Real measured cases and the reason behind each rule: [rightsubs/docs/FINDINGS.md](rightsubs/docs/FINDINGS.md); every option: [rightsubs/docs/CONFIGURATION.md](rightsubs/docs/CONFIGURATION.md); the DeepL translation in detail: [rightsubs/docs/DEEPL-TRANSLATION.md](rightsubs/docs/DEEPL-TRANSLATION.md).
+Real measured cases and the reason behind each rule: [rightsubs/docs/FINDINGS.md](rightsubs/docs/FINDINGS.md); every option: [rightsubs/docs/CONFIGURATION.md](rightsubs/docs/CONFIGURATION.md); the translation in detail: [rightsubs/docs/DEEPL-TRANSLATION.md](rightsubs/docs/DEEPL-TRANSLATION.md).
 
 ## Limitations
 
-- The translation's **timing check** only exists with Real-Debrid; with Stremio torrents or other debrids the translation is more limited (table above).
-- The DeepL translation uses the free quota (~21,000 characters per episode, out of 500,000 a month), only translates a series with an embedded text track to check the timing (a movie without one is translated with "timing not confirmed") and, the first time for each episode, asks you to open the video again.
+- The translation's **timing check** only exists with Real-Debrid or TorBox; with Stremio torrents or other debrids the translation is more limited (table above).
+- The DeepL translation uses the free quota (~21,000 characters per episode, out of 500,000 a month; Gemini and OpenRouter have their own limits and take over when it runs out), only translates a series with an embedded text track to check the timing (a movie without one is translated with "timing not confirmed") and, the first time for each episode, asks you to open the video again.
 - The screen sets only the credentials and the languages; the other options (time limits, cache, syncing) use the defaults in `rightsubs/config.example.yaml`. RightSubs only serves subtitles: the videos keep coming from the stream addons installed in Stremio (Torrentio, Sootio…).
 - ffmpeg has only what the current RightSubs needs. Syncing by audio (not done yet) will need audio decoders in [scripts/build-ffmpeg.sh](scripts/build-ffmpeg.sh).
 - Node comes from the Termux repository, which only keeps the latest version: each build takes the current one (`BUILD-INFO.txt` records which).
@@ -163,7 +175,7 @@ They test `rightsubs/` and `android/` **as they are on disk** (no need to commit
 
 | Layer | Where | What it covers |
 |---|---|---|
-| Addon | `rightsubs/test/*.test.ts` | subtitle choice and syncing, sources, cache, DeepL translation, config, viewer messages in every language |
+| Addon | `rightsubs/test/*.test.ts` | subtitle choice and syncing, sources, cache, DeepL/Gemini/OpenRouter translation, config, viewer messages in every language |
 | App | `android/app/src/test/` | `ConfigWriter` with the addon's **real** template, language list × the addon's `languages.ts`, English × Portuguese strings, `Redactor`, phone form, QR code, credentials validation |
 
 Setup (once), per system:

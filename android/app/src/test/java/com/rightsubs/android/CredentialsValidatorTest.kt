@@ -77,6 +77,56 @@ class CredentialsValidatorTest {
     }
 
     @Test
+    fun geminiAndOpenRouterKeysAreOptionalAndGoOnlyToTheEnvironment() {
+        val none = ok(CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", ""), null))
+        assertFalse(none.environment().containsKey("GEMINI_API_KEY"))
+        assertFalse(none.environment().containsKey("OPENROUTER_API_KEY"))
+
+        val gemini = "AQ.FakeGeminiKeyForTests_0123456789"
+        val router = "sk-or-v1-0123456789abcdef0123456789abcdef"
+        val both = ok(CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", "", geminiApiKey = " $gemini ", openRouterApiKey = router), null))
+        assertEquals(gemini, both.environment()["GEMINI_API_KEY"])
+        assertEquals(router, both.environment()["OPENROUTER_API_KEY"])
+        assertTrue(gemini in both.secrets() && router in both.secrets())
+    }
+
+    @Test
+    fun rejectsMalformedGeminiAndOpenRouterKeys() {
+        val errs = errors(
+            CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", "", geminiApiKey = "not a key!", openRouterApiKey = "x"), null),
+        )
+        assertEquals(listOf(CredentialError.GEMINI_KEY_INVALID, CredentialError.OPENROUTER_KEY_INVALID), errs)
+    }
+
+    @Test
+    fun keepsAndRemovesStoredGeminiAndOpenRouterKeys() {
+        val gemini = "AQ.FakeGeminiKeyForTests_0123456789"
+        val router = "sk-or-v1-0123456789abcdef0123456789abcdef"
+        val stored = Credentials(apiKey, "maria", "secret", rdToken, deepLKey, gemini, router)
+        val kept = ok(CredentialsValidator.validate(CredentialsForm("", "", "", ""), stored))
+        assertEquals(gemini, kept.geminiApiKey)
+        assertEquals(router, kept.openRouterApiKey)
+        val removed = ok(CredentialsValidator.validate(CredentialsForm("", "", "", "", removeGemini = true, removeOpenRouter = true), stored))
+        assertEquals("", removed.geminiApiKey)
+        assertEquals("", removed.openRouterApiKey)
+        assertEquals(deepLKey, removed.deepLApiKey)
+    }
+
+    @Test
+    fun torBoxTokenIsOptionalValidatedKeptRemovedAndOnlyInTheEnvironment() {
+        val token = "0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9"
+        val none = ok(CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", ""), null))
+        assertFalse(none.environment().containsKey("TORBOX_TOKEN"))
+        val set = ok(CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", "", torBoxToken = " $token "), null))
+        assertEquals(token, set.environment()["TORBOX_TOKEN"])
+        assertTrue(token in set.secrets())
+        assertEquals(token, ok(CredentialsValidator.validate(CredentialsForm("", "", "", ""), set)).torBoxToken)
+        assertEquals("", ok(CredentialsValidator.validate(CredentialsForm("", "", "", "", removeTorBox = true), set)).torBoxToken)
+        val bad = errors(CredentialsValidator.validate(CredentialsForm(apiKey, "maria", "secret", "", torBoxToken = "not a token!"), null))
+        assertEquals(listOf(CredentialError.TORBOX_TOKEN_INVALID), bad)
+    }
+
+    @Test
     fun neverPrintsValues() {
         val creds = Credentials(apiKey, "maria", "secret", rdToken)
         assertFalse("secret" in creds.toString())

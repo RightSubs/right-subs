@@ -22,6 +22,8 @@ class NodeRuntime(private val context: Context) {
     val binDir = File(files, "bin")
     val libDir = File(files, "lib")
     val dataDir = File(files, ".rightsubs")
+    /** The addon's `cache.dir` (`~/.rightsubs/cache`, with HOME = files/). */
+    val cacheDir = File(dataDir, "cache")
     val configFile = File(files, "config.yaml")
     val caFile = File(appDir, "cacert.pem")
     // Debug builds only (build.ps1 -DebugLog): a copy in app-specific external storage,
@@ -127,6 +129,10 @@ class NodeRuntime(private val context: Context) {
             realDebrid = credentials.realDebridToken.isNotEmpty(),
             deepL = credentials.deepLApiKey.isNotEmpty(),
             languages = Languages.load(context),
+            gemini = credentials.geminiApiKey.isNotEmpty(),
+            openRouter = credentials.openRouterApiKey.isNotEmpty(),
+            torBox = credentials.torBoxToken.isNotEmpty(),
+            translationOrder = TranslationOrder.load(context),
         )
         val tmp = File(files, "config.yaml.tmp")
         tmp.writeText(config)

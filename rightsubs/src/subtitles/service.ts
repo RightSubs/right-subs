@@ -1,4 +1,4 @@
-import { LANGUAGES, type Language } from '../languages/languages.ts';
+import { findLanguage, LANGUAGES, type Language } from '../languages/languages.ts';
 import type { Logger } from '../logger.ts';
 import { pickLanguageTrack, type EmbeddedTrack } from '../media/embedded.ts';
 import { standardRate, type VideoInfo } from '../media/probe.ts';
@@ -17,6 +17,12 @@ import { parseSrt, retime, serializeSrt, type Cue } from './srt.ts';
 import { decodeSubtitle, looksLikeSrt, toSrt } from './text.ts';
 
 const SEARCH_TTL_MS = 30 * 60 * 1000;
+/**
+ * A complete search answer is also kept on disk for this long, so opening the same video again, or
+ * the addon restarting, does not ask the providers again (the OpenSubtitles API counts every call).
+ * New subtitles for a fresh release show up within hours, hence not longer.
+ */
+const SEARCH_DISK_TTL_MS = 6 * 60 * 60 * 1000;
 /** In-memory entries (searches, learned hashes); released when the addon goes idle. */
 const MAX_ENTRIES = 50;
 /** Candidates tried per track before giving up. */
@@ -36,6 +42,8 @@ const MIN_SYNC_GAIN = 0.1;
  * started together against 32%.
  */
 const MIN_STARTS_GAIN = 0.25;
+/** A subtitle must reach this share of the video's runtime (its last line ends after it), or it is from another episode or cut. */
+const MIN_COVERAGE = 0.6;
 /** Largest frame-rate ratio treated as a speed-up (PAL 25 vs 23.976 is 4.3%). */
 const MAX_SPEEDUP = 0.05;
 /** Translation source: candidates with a distinct timing examined, in any language. */
@@ -289,6 +297,7 @@ export class SubtitleService {
       const fetched = await this.#fetch(entry, track, deadline, failed);
       if (fetched === 'deadline') break;
       if (!fetched) continue;
+      if (this.#coversTooLittle(entry, fetched.srt, track, video)) continue;
       const { srt, sync } = await this.#sync(entry, fetched.srt, ranked, track, deadline, failed, video, videoSize);
       if (TRUSTED.has(sync['status'] as string) || sync['status'] === 'budget_exceeded') return done(entry, fetched, srt, sync);
       fallback ??= done(entry, fetched, srt, sync);
@@ -340,20 +349,20 @@ export class SubtitleService {
     if (!source) return undefined;
     const { entry, fetched, checked } = source;
     try {
-      const { cues: translated, characters } = await translateCues(
+      const { cues: translated, characters, providers } = await translateCues(
         translator,
         parseSrt(decodeSubtitle(checked.srt)),
         primary,
         entry.candidate.language,
       );
       if (translated.length === 0) return undefined;
-      const srt = Buffer.from(serializeSrt(withTranslationNotice(translated, primary, source.unconfirmed)), 'utf8');
+      const srt = Buffer.from(serializeSrt(withTranslationNotice(translated, primary, source.unconfirmed, providers)), 'utf8');
       await cache.put(cacheKey, srt);
-      logger.info('translation.done', { id: track.id, from: entry.candidate.language.tag, to: primary.tag, cues: translated.length, characters });
+      logger.info('translation.done', { id: track.id, from: entry.candidate.language.tag, to: primary.tag, cues: translated.length, characters, providers });
       return {
         srt,
         sync: { ...checked.sync, status: 'translated', sourceSync: checked.sync['status'], from: entry.candidate.language.tag, characters },
-        details: { ...describe(entry, fetched.source), language: primary.tag, provider: 'deepl', cache: false },
+        details: { ...describe(entry, fetched.source), language: primary.tag, provider: providers.length > 0 ? providers.join('+').toLowerCase() : 'deepl', cache: false },
       };
     } catch (err) {
       logger.warn('translation.failed', { id: track.id, message: (err as Error).message });
@@ -485,6 +494,7 @@ export class SubtitleService {
       const fetched = await this.#fetch(entry, track, deadline, failed);
       if (fetched === 'deadline') break;
       if (!fetched) continue;
+      if (this.#coversTooLittle(entry, fetched.srt, track, video)) continue;
       const checked =
         sync.enabled && exact(entry, track.filename)
           ? { srt: fetched.srt, sync: { status: 'exact', verified: false } }
@@ -513,6 +523,28 @@ export class SubtitleService {
       });
     }
     return fallback;
+  }
+
+  /**
+   * A subtitle that ends long before the video does belongs to another episode or cut
+   * (Cat's Eye S01E03: a 24-minute WEB subtitle for a 55-minute DLMux), so no offset or
+   * rescale can sync it: it is skipped, like one that could not be downloaded. A subtitle
+   * made for this exact file is never second-guessed.
+   */
+  #coversTooLittle(entry: Ranked, srt: Buffer, track: TrackRequest, video: VideoInfo | undefined): boolean {
+    if (!video?.durationMs || exact(entry, track.filename)) return false;
+    const cues = parseSrt(decodeSubtitle(srt));
+    if (cues.length === 0) return false;
+    const lastEndMs = Math.max(...cues.map((cue) => cue.endMs));
+    if (lastEndMs >= video.durationMs * MIN_COVERAGE) return false;
+    this.#options.logger.info('subtitles.too_short', {
+      id: track.id,
+      language: entry.candidate.language.tag,
+      release: entry.candidate.releaseName ?? null,
+      lastEndMs,
+      videoMs: video.durationMs,
+    });
+    return true;
   }
 
   #record(track: TrackRequest, sync: Record<string, unknown>): void {
@@ -707,18 +739,58 @@ export class SubtitleService {
     const hit = this.#searches.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.result;
 
-    const result = Promise.all(
-      this.#options.providers.map(async (provider) => {
+    const result = this.#searchProviders(key, query, request.id);
+    remember(this.#searches, key, { expiresAt: Date.now() + SEARCH_TTL_MS, result });
+    return result;
+  }
+
+  /**
+   * The providers' answer, from disk when a complete one was kept recently. An answer is only kept
+   * when no provider failed and something was found: an outage or an empty list may be temporary.
+   */
+  async #searchProviders(key: string, query: SubtitleQuery, id: string): Promise<SubtitleCandidate[]> {
+    const { cache, logger, providers } = this.#options;
+    const diskKey = `search:${query.languages.map((lang) => lang.tag).join(',')}:${key}`;
+    const kept = await this.#readSearch(diskKey);
+    if (kept) {
+      logger.info('search.cached', { id, candidates: kept.length });
+      return kept;
+    }
+    let failed = false;
+    const lists = await Promise.all(
+      providers.map(async (provider) => {
         try {
           return await provider.search(query);
         } catch (err) {
-          this.#options.logger.warn('provider.search_failed', { provider: provider.id, message: (err as Error).message });
+          failed = true;
+          logger.warn('provider.search_failed', { provider: provider.id, message: (err as Error).message });
           return [];
         }
       }),
-    ).then((lists) => lists.flat());
-    remember(this.#searches, key, { expiresAt: Date.now() + SEARCH_TTL_MS, result });
-    return result;
+    );
+    const candidates = lists.flat();
+    if (!failed && candidates.length > 0) {
+      const stored = { at: Date.now(), candidates: candidates.map((candidate) => ({ ...candidate, language: candidate.language.tag })) };
+      await cache.put(diskKey, Buffer.from(JSON.stringify(stored), 'utf8')).catch(() => {});
+    }
+    return candidates;
+  }
+
+  async #readSearch(diskKey: string): Promise<SubtitleCandidate[] | undefined> {
+    const data = await this.#options.cache.get(diskKey).catch(() => undefined);
+    if (!data) return undefined;
+    try {
+      const stored = JSON.parse(data.toString('utf8')) as { at?: unknown; candidates?: (Omit<SubtitleCandidate, 'language'> & { language: string })[] };
+      if (typeof stored.at !== 'number' || Date.now() - stored.at > SEARCH_DISK_TTL_MS || !Array.isArray(stored.candidates)) return undefined;
+      const candidates: SubtitleCandidate[] = [];
+      for (const item of stored.candidates) {
+        const language = findLanguage(item.language);
+        if (language) candidates.push({ ...item, language });
+      }
+      return candidates.length > 0 ? candidates : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

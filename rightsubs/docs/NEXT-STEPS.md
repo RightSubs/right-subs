@@ -1,6 +1,6 @@
 # Next steps
 
-> As of 2026-11-07: the addon runs inside the APK (Xiaomi box and phone), in companion mode (Torrentio/Sootio installed directly in Stremio; RightSubs finds the file through Real-Debrid or Stremio's local server). Evidence: [FINDINGS.md](FINDINGS.md). Box, build and install: the root `README.md` and `CLAUDE.md`.
+> As of 2026-11-07: the addon runs inside the APK (Xiaomi box and phone), in companion mode (Torrentio/Sootio installed directly in Stremio; RightSubs finds the file through Real-Debrid, TorBox or Stremio's local server). Evidence: [FINDINGS.md](FINDINGS.md). Box, build and install: the root `README.md` and `CLAUDE.md`.
 
 When a title comes **out of sync**: note which one it was (movie/episode and, if possible, the chosen file) and bring it for analysis — the log has the rest (`-debuglog` APK on the box: skill `box`).
 
@@ -28,5 +28,5 @@ When a title comes **out of sync**: note which one it was (movie/episode and, if
 The APK covers the essentials (credentials on the screen or from a phone, torrents without Real-Debrid). What each person needs to know is in the root README; points to remember:
 
 1. **Stremio's addon list belongs to the account.** RightSubs (`127.0.0.1`) only answers on the device where the APK is; on other devices of the same account it brings no subtitle. The other subtitle addons can stay installed (all APK tests were done that way) and keep serving those devices.
-2. Each person uses their **own** accounts: OpenSubtitles (free — username, not e-mail) and, if they have one, Real-Debrid.
+2. Each person uses their **own** accounts: OpenSubtitles (free — username, not e-mail) and, if they have them, Real-Debrid or TorBox and a translator (DeepL, Gemini, OpenRouter).
 3. The repository is public: `FINDINGS.md` and `DEEPL-TRANSLATION.md` record real file names used in the tests (they document the known answers).

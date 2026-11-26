@@ -10,6 +10,11 @@
     <string name="status_failed">Não foi possível iniciar</string>
     <string name="status_needs_setup">Informe as credenciais para começar.</string>
     <string name="health_ok">Versão %1$s · Node %2$s · ffmpeg: %3$s · %4$s</string>
+    <string name="health_deepl">DeepL neste mês: %1$s de %2$s caracteres usados</string>
+    <string name="health_deepl_used_up">DeepL neste mês: %1$s de %2$s caracteres usados. As traduções ficam paradas até renovar.</string>
+    <string name="health_openrouter">OpenRouter hoje: %1$s de %2$s requisições gratuitas usadas</string>
+    <string name="health_openrouter_used_up">OpenRouter hoje: %1$s de %2$s requisições gratuitas usadas. Volta amanhã.</string>
+    <string name="health_gemini">Gemini hoje (estimativa): %1$s de %2$s requisições feitas</string>
     <string name="yes">sim</string>
     <string name="no">não</string>
     <string name="mode_light">modo leve</string>
@@ -20,7 +25,11 @@
     <string name="edit_credentials">Credenciais</string>
     <string name="restart">Reiniciar</string>
     <string name="show_log">Log</string>
-    <string name="first_time_note">Primeira vez de um vídeo sem legenda no seu idioma: o RightSubs lê um pouco do vídeo e traduz com o DeepL, o que leva de 20 a 60 s. Como o Stremio desiste em 10 s, o vídeo abre com uma legenda provisória que avisa: saia do vídeo e abra de novo depois de cerca de 30 s e a legenda traduzida aparece. Da segunda vez em diante é instantâneo.</string>
+    <string name="clear_cache">Limpar cache</string>
+    <string name="clear_cache_do">Limpar</string>
+    <string name="clear_cache_confirm">Apaga as legendas que o RightSubs guardou (baixadas, traduzidas e de buscas) e reinicia o addon. Suas credenciais e configurações continuam. Na próxima vez que você abrir cada vídeo, ele será buscado e traduzido de novo, o que usa a cota dos serviços de legendas e de tradução.</string>
+    <string name="cache_cleared">Cache limpo</string>
+    <string name="first_time_note">Primeira vez de um vídeo sem legenda no seu idioma: o RightSubs lê um pouco do vídeo e traduz com um serviço de IA (DeepL, Gemini ou OpenRouter), o que leva de 20 a 60 s. Como o Stremio desiste em 10 s, o vídeo abre com uma legenda provisória que avisa: saia do vídeo e abra de novo depois de cerca de 30 s e a legenda traduzida aparece. Da segunda vez em diante é instantâneo.</string>
     <string name="how_to">Instale o addon pelo botão acima: no celular ele abre o Stremio Web no navegador; na TV, abra Addons › Add addon no Stremio e digite o endereço. Depois desinstale o OpenSubtitles v3 para que o RightSubs seja a única fonte de legendas. O serviço inicia sozinho quando o aparelho liga.</string>
     <string name="install_tv">No Stremio, abra Addons › Add addon e digite %1$s (dica: o teclado do app Google TV no celular aceita colar)</string>
     <string name="install_manually">Endereço copiado. No Stremio, abra Addons › Add addon e cole: %1$s</string>
@@ -35,9 +44,22 @@
     <string name="languages_hint">Principal e secundária são as legendas que você assiste: para o Stremio escolher a do RightSubs sozinho, o idioma de legenda do Stremio deve ser o mesmo da principal. A referência nunca aparece na tela: só ajuda a acertar o tempo (a maioria das legendas feitas para cada arquivo está em inglês).</string>
     <string name="languages_same">A secundária precisa ser diferente da principal</string>
     <string name="languages_saved">Idiomas salvos: %1$s (referência: %2$s)</string>
+    <string name="translation_title">Ordem dos serviços</string>
+    <string name="translation_open">Tradução por IA</string>
+    <string name="translation_page_title">Tradução das legendas por IA</string>
+    <string name="translation_how_title">Como funciona</string>
+    <string name="translation_how">Quando um vídeo não tem legenda nos seus idiomas, o RightSubs traduz uma legenda de outro idioma com inteligência artificial, usando os serviços abaixo: DeepL (um tradutor neural) e Gemini e OpenRouter (grandes modelos de linguagem, os LLMs).\n\n• Eles são usados na ordem que você escolher (1º, 2º, 3º), para cada parte da legenda. Se o 1º ficar sem cota, estiver ocupado ou falhar, o 2º assume exatamente de onde ele parou, depois o 3º. O que já foi traduzido é guardado.\n• Um serviço sem chave é pulado. Deixe um lugar em Nenhuma para usar menos serviços; escolher um serviço que já está em outro lugar move ele.\n• A primeira vez demora: o vídeo abre com uma mensagem e, depois de cerca de 30 s, você abre de novo e a legenda traduzida está lá.\n• A legenda começa com um aviso dizendo qual serviço a traduziu.\n\nSugestão: DeepL primeiro. Ele é rápido e confiável (500.000 caracteres grátis por mês, uns 20 episódios). Gemini e OpenRouter são serviços de IA gratuitos e não custam nada, mas costumam estar ocupados e têm limites diários (OpenRouter: 50 requisições por dia), então funcionam melhor como reserva.</string>
+    <string name="translation_keys_title">Chaves dos serviços</string>
+    <string name="translation_summary">Tradução por IA: %1$s</string>
+    <string name="translation_summary_off">Tradução por IA: desligada (coloque uma chave em Tradução por IA)</string>
+    <string name="back">Voltar</string>
+    <string name="translation_first">1º</string>
+    <string name="translation_second">2º</string>
+    <string name="translation_third">3º</string>
+    <string name="translation_saved">Ordem da tradução por IA: %1$s</string>
 
     <string name="form_intro">OpenSubtitles: crie uma conta gratuita em opensubtitles.com. A API key fica em perfil › API consumers › New consumer (marque “Allow anonymous downloads”).</string>
-    <string name="form_security">Os dados ficam só neste aparelho, criptografados com uma chave do Android Keystore que não sai dele, e são enviados apenas à OpenSubtitles, ao Real-Debrid e ao DeepL. Não ficam visíveis depois de salvos. Dica: para digitar no celular, use o teclado do app Google TV.</string>
+    <string name="form_security">Os dados ficam só neste aparelho, criptografados com uma chave do Android Keystore que não sai dele, e são enviados apenas à OpenSubtitles, ao Real-Debrid, ao DeepL, ao Gemini e ao OpenRouter. Não ficam visíveis depois de salvos. Dica: para digitar no celular, use o teclado do app Google TV.</string>
     <string name="hint_api_key">API key da OpenSubtitles</string>
     <string name="hint_user">Nome de usuário da OpenSubtitles (não o e-mail)</string>
     <string name="hint_password">Senha da OpenSubtitles</string>
@@ -45,9 +67,19 @@
     <string name="hint_rd_token">Token do Real-Debrid (opcional)</string>
     <string name="hint_keep"> — em branco mantém o atual</string>
     <string name="remove_rd">Remover o token do Real-Debrid</string>
+    <string name="torbox_intro">TorBox (opcional, no lugar do Real-Debrid ou junto): deixa o RightSubs achar o vídeo que você está assistindo na sua conta TorBox e sincronizar a legenda com ele. Token nas configurações do TorBox, em API.</string>
+    <string name="hint_torbox_token">Token do TorBox (opcional)</string>
+    <string name="remove_torbox">Remover o token do TorBox</string>
     <string name="deepl_intro">DeepL (opcional, último recurso): traduz para o seu idioma uma legenda de outro idioma quando não existe nenhuma na principal nem na secundária. Chave gratuita em deepl.com, em Conta › Chaves de API (termina em “:fx”).</string>
     <string name="hint_deepl_key">Chave do DeepL (opcional)</string>
     <string name="remove_deepl">Remover a chave do DeepL</string>
+    <string name="gemini_intro">Gemini (opcional): chave gratuita em aistudio.google.com, em Get API key. O plano gratuito conta requisições por dia.</string>
+    <string name="hint_gemini_key">Chave do Gemini (opcional)</string>
+    <string name="remove_gemini">Remover a chave do Gemini</string>
+    <string name="openrouter_intro">OpenRouter (opcional): chave em openrouter.ai, em Settings › Keys. Os modelos gratuitos têm limite por dia.</string>
+    <string name="hint_openrouter_key">Chave do OpenRouter (opcional)</string>
+    <string name="remove_openrouter">Remover a chave do OpenRouter</string>
+    <string name="translation_privacy">Gemini e OpenRouter são serviços de IA: nos planos gratuitos o provedor pode usar o texto da legenda para treinar seus modelos.</string>
     <string name="show_values">Mostrar o que estou digitando</string>
     <string name="save">Salvar e iniciar</string>
     <string name="cancel">Cancelar</string>
@@ -76,7 +108,10 @@
     <string name="error_password_missing">Informe a senha da OpenSubtitles.</string>
     <string name="error_password_invalid">Senha da OpenSubtitles inválida.</string>
     <string name="error_rd_token_invalid">Token do Real-Debrid inválido (copie de real-debrid.com/apitoken).</string>
+    <string name="error_torbox_token_invalid">Token do TorBox inválido (copie das configurações do TorBox, em API).</string>
     <string name="error_deepl_key_invalid">Chave do DeepL inválida (copie de deepl.com, em Conta › Chaves de API).</string>
+    <string name="error_gemini_key_invalid">Chave do Gemini inválida (copie de aistudio.google.com, em Get API key).</string>
+    <string name="error_openrouter_key_invalid">Chave do OpenRouter inválida (copie de openrouter.ai, em Settings › Keys).</string>
 
     <!-- The form the phone opens ("Preencher pelo celular"), served by PhoneSetupServer. -->
     <string name="web_lang">pt-BR</string>

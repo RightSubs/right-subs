@@ -248,3 +248,27 @@ translation:
   assert.throws(() => loadConfig({ configFile: writeConfig(yaml), env: {} }), /translation\.deepl\.apiKey: required/);
   assert.equal(loadConfig({ configFile: writeConfig(yaml), env: { DEEPL_API_KEY: 'k:fx' } }).translation.deepl.apiKey, 'k:fx');
 });
+
+test('Gemini and OpenRouter are off by default, need their key, and the order refuses repeats', () => {
+  const base = loadConfig({ configFile: writeConfig(), env: FULL_ENV });
+  assert.equal(base.translation.gemini.enabled, false);
+  assert.deepEqual(base.translation.gemini.models, ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite']);
+  assert.equal(base.translation.gemini.dailyRequests, 500);
+  assert.deepEqual(base.translation.order, ['deepl', 'openrouter', 'gemini']);
+  const on = (block: string) => `${MINIMAL_YAML}\ntranslation:\n${block}\n`;
+  const gem = '  gemini:\n    enabled: true\n    apiKey: ${GEMINI_API_KEY}';
+  const open = '  openrouter:\n    enabled: true\n    apiKey: ${OPENROUTER_API_KEY}';
+  assert.throws(() => loadConfig({ configFile: writeConfig(on(gem)), env: {} }), /translation\.gemini\.apiKey: required/);
+  assert.throws(() => loadConfig({ configFile: writeConfig(on(open)), env: {} }), /translation\.openrouter\.apiKey: required/);
+  assert.throws(() => loadConfig({ configFile: writeConfig(on('  order: [gemini, gemini]')), env: {} }), /translation\.order: a provider is listed twice/);
+  const ok = loadConfig({ configFile: writeConfig(on(`  order: [gemini, deepl]\n${gem}`)), env: { GEMINI_API_KEY: 'k' } });
+  assert.deepEqual(ok.translation.order, ['gemini', 'deepl']);
+});
+
+test('TorBox is off by default and needs its token when turned on', () => {
+  const base = loadConfig({ configFile: writeConfig(), env: FULL_ENV });
+  assert.notEqual(base.streams.torbox?.enabled, true);
+  const yaml = `${MINIMAL_YAML}\nstreams:\n  torbox:\n    enabled: true\n    token: \${TORBOX_TOKEN}\n`;
+  assert.throws(() => loadConfig({ configFile: writeConfig(yaml), env: {} }), /streams\.torbox\.token: required/);
+  assert.equal(loadConfig({ configFile: writeConfig(yaml), env: { TORBOX_TOKEN: 't' } }).streams.torbox?.token, 't');
+});

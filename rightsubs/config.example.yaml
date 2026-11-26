@@ -52,6 +52,11 @@ streams:
   realdebrid:
     enabled: false
     token: ${RD_TOKEN}
+  # The same with TorBox: the file playing is found among your TorBox torrents.
+  # Token in .env (TORBOX_TOKEN). Set enabled to true after filling it in.
+  torbox:
+    enabled: false
+    token: ${TORBOX_TOKEN}
   # Torrents without Real-Debrid: Stremio downloads through its own streaming server on the
   # same device, and RightSubs reads the file's fps from there (not the embedded subtitle,
   # so as not to take bandwidth from the video). Only works if RightSubs runs on Stremio's device.
@@ -81,10 +86,23 @@ sync:
 # is cached. Key in .env (DEEPL_API_KEY). Set enabled to true after filling it in.
 # More in docs/DEEPL-TRANSLATION.md.
 # forceFrom: [en]   # TESTING ONLY: always translates, only from these languages, even with an existing subtitle
+# Providers are tried in `order`; one that is off, out of quota or failing hands over to the next.
+# Gemini (key from Google AI Studio) and OpenRouter (openrouter.ai) are LLMs: their free tiers may
+# let the provider use the subtitle text for training.
 translation:
+  order: [deepl, openrouter, gemini]
   deepl:
     enabled: false
     apiKey: ${DEEPL_API_KEY}
+  gemini:
+    enabled: false
+    apiKey: ${GEMINI_API_KEY}
+    models: [gemini-3.1-flash-lite, gemini-3.5-flash-lite]   # tried in this order: the next when one is busy or out of quota
+    dailyRequests: 500   # free-tier requests per day: only used to show how many are left (an estimate)
+  openrouter:
+    enabled: false
+    apiKey: ${OPENROUTER_API_KEY}
+    model: nvidia/nemotron-3.5-lightning:free   # a fixed free model: "openrouter/free" picks a random one, some too small to translate
 
 # Resource use on the device: RightSubs only works when Stremio asks.
 resources:

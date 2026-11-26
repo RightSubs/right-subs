@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit
 class AddonService : Service() {
     @Volatile private var running = false
     @Volatile private var restartRequested = false
+    /** Set by "Clear cache": the cache is emptied while the addon is stopped, before it starts again. */
+    @Volatile private var clearCacheRequested = false
     @Volatile private var process: Process? = null
     private var supervisor: Thread? = null
 
@@ -38,6 +40,10 @@ class AddonService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_RESTART -> if (supervisor?.isAlive == true) restartProcess() else supervise()
+            ACTION_CLEAR_CACHE -> {
+                clearCacheRequested = true
+                if (supervisor?.isAlive == true) restartProcess() else supervise()
+            }
             else -> if (supervisor?.isAlive != true) supervise()
         }
         return START_STICKY
@@ -77,6 +83,11 @@ class AddonService : Service() {
                 break
             }
             restartRequested = false
+            if (clearCacheRequested) {
+                clearCacheRequested = false
+                val deleted = CacheCleaner.clear(runtime.cacheDir)
+                runtime.log.note("cache.cleared", """{"files":$deleted}""")
+            }
             AddonState.set(if (failures == 0) AddonState.Status.STARTING else AddonState.Status.RESTARTING)
             val startedAt = SystemClock.elapsedRealtime()
             val output = ArrayDeque<String>()
@@ -195,6 +206,7 @@ class AddonService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val ACTION_RESTART = "com.rightsubs.android.RESTART"
         private const val ACTION_STOP = "com.rightsubs.android.STOP"
+        private const val ACTION_CLEAR_CACHE = "com.rightsubs.android.CLEAR_CACHE"
         /** sysexits EX_CONFIG, from src/server.ts. */
         private const val EXIT_CONFIG = 78
         /** Idle with too much memory: RightSubs asks to be restarted (src/resources/idle.ts). */
@@ -204,6 +216,8 @@ class AddonService : Service() {
         fun start(context: Context) = send(context, null)
         fun restart(context: Context) = send(context, ACTION_RESTART)
         fun stop(context: Context) = send(context, ACTION_STOP)
+        /** Restarts the addon with an empty cache. */
+        fun clearCache(context: Context) = send(context, ACTION_CLEAR_CACHE)
 
         private fun send(context: Context, action: String?) {
             context.startForegroundService(Intent(context, AddonService::class.java).setAction(action))

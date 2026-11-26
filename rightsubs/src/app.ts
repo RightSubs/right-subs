@@ -11,7 +11,7 @@ import type { StreamProxy } from './streams/proxy.ts';
 import { buildManifest } from './stremio/manifest.ts';
 import type { KitsuResolver } from './stremio/kitsu.ts';
 import { parseSubtitlesRequest, type SubtitlesRequest } from './stremio/request.ts';
-import { embeddedLabel, embeddedNoticeSrt, placeholderSrt, statusLabel, statusPath, statusSrt } from './stremio/status.ts';
+import { embeddedLabel, embeddedNoticeSrt, placeholderSrt, statusLabel, statusPath, statusSrt, unavailableSrt } from './stremio/status.ts';
 import { parseTrackPath, trackPath } from './stremio/track.ts';
 import type { SubtitleService } from './subtitles/service.ts';
 
@@ -26,6 +26,10 @@ export interface AppDeps {
   streams?: Pick<StreamProxy, 'enabled' | 'streams' | 'status'>;
   /** Finds the URL of the file being played; null in /health means light mode. */
   locator?: Pick<FileLocator, 'enabled' | 'status'>;
+  /** The translation service and what the user has spent of it (null in /health when there is none). */
+  translation?: { provider: string; usage: () => Promise<{ used: number; limit: number } | undefined> };
+  /** What each translation provider in the chain has used (characters for DeepL, requests today for OpenRouter; null when it cannot be known, as for Gemini). */
+  translationQuotas?: { provider: string; unit: 'characters' | 'requests'; usage: () => Promise<{ used: number; limit: number } | undefined> }[];
   /** Maps anime (Kitsu) ids to IMDb; without it, Kitsu requests get no subtitles. */
   kitsu?: Pick<KitsuResolver, 'resolve'>;
   /**
@@ -39,7 +43,7 @@ export interface AppDeps {
 }
 
 export function createServer(deps: AppDeps): Server {
-  const { config, logger, version, tools, resources, providers, subtitles, streams, locator, kitsu, translationWaitMs = 3000 } = deps;
+  const { config, logger, version, tools, resources, providers, subtitles, streams, locator, kitsu, translation, translationQuotas, translationWaitMs = 3000 } = deps;
   const resolve = async <T extends SubtitlesRequest>(request: T): Promise<T | undefined> => {
     if (!request.kitsu) return request;
     const resolved = await kitsu?.resolve(request);
@@ -148,7 +152,10 @@ export function createServer(deps: AppDeps): Server {
       srt = await preparing;
     }
     if (!srt) {
-      sendJson(res, 404, { error: 'subtitle_unavailable' });
+      // Never a 404: it crashes Stremio's streaming server (see unavailableSrt).
+      const message = unavailableSrt(viewer);
+      res.writeHead(200, { 'Content-Type': 'application/x-subrip; charset=utf-8', 'Content-Length': message.length, 'Cache-Control': 'no-store' });
+      res.end(res.req.method === 'HEAD' ? undefined : message);
       return;
     }
     res.writeHead(200, { 'Content-Type': 'application/x-subrip; charset=utf-8', 'Content-Length': srt.length });
@@ -158,7 +165,16 @@ export function createServer(deps: AppDeps): Server {
   const router = new Router()
     .get('/', ({ res }) => redirect(res, '/manifest.json'))
     .get('/manifest.json', ({ res }) => sendJson(res, 200, manifest))
-    .get('/health', ({ res }) => {
+    .get('/health', async ({ res }) => {
+      const usage = await translation?.usage();
+      const quotas = translationQuotas
+        ? await Promise.all(
+            translationQuotas.map(async ({ provider, unit, usage: read }) => {
+              const value = await read();
+              return { provider, unit, used: value?.used ?? null, limit: value?.limit ?? null };
+            }),
+          )
+        : null;
       const memory = process.memoryUsage();
       const sweep = resources.lastSweep();
       sendJson(res, 200, {
@@ -192,6 +208,10 @@ export function createServer(deps: AppDeps): Server {
         subtitles: subtitles.status(),
         streams: streams?.enabled ? streams.status() : null,
         locator: locator?.enabled ? locator.status() : null,
+        // Characters used this month; used/limit are null when the service cannot be reached.
+        translation: translation ? { provider: translation.provider, used: usage?.used ?? null, limit: usage?.limit ?? null } : null,
+        // The same for every provider in the chain, in the user's order.
+        translationProviders: quotas,
       });
     })
     .get('/subtitles/:type/:id.json', handleSubtitles)

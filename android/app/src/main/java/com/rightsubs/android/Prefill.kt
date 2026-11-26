@@ -35,6 +35,9 @@ object Prefill {
                 password = json.optString("OPENSUBTITLES_PASSWORD"),
                 realDebridToken = json.optString("RD_TOKEN"),
                 deepLApiKey = json.optString("DEEPL_API_KEY"),
+                geminiApiKey = json.optString("GEMINI_API_KEY"),
+                openRouterApiKey = json.optString("OPENROUTER_API_KEY"),
+                torBoxToken = json.optString("TORBOX_TOKEN"),
             )
             val result = CredentialsValidator.validate(form, null)
             if (result is Validation.Ok) store.save(result.credentials)

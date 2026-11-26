@@ -12,6 +12,12 @@ class Credentials(
     val realDebridToken: String,
     /** Empty when DeepL is not used: without it, no translation (the addon's last resort). */
     val deepLApiKey: String = "",
+    /** Empty when Gemini is not used. */
+    val geminiApiKey: String = "",
+    /** Empty when OpenRouter is not used. */
+    val openRouterApiKey: String = "",
+    /** Empty when TorBox is not used. */
+    val torBoxToken: String = "",
 ) {
     fun environment(): Map<String, String> = buildMap {
         put("OPENSUBTITLES_API_KEY", openSubtitlesApiKey)
@@ -19,10 +25,13 @@ class Credentials(
         put("OPENSUBTITLES_PASSWORD", openSubtitlesPassword)
         if (realDebridToken.isNotEmpty()) put("RD_TOKEN", realDebridToken)
         if (deepLApiKey.isNotEmpty()) put("DEEPL_API_KEY", deepLApiKey)
+        if (geminiApiKey.isNotEmpty()) put("GEMINI_API_KEY", geminiApiKey)
+        if (openRouterApiKey.isNotEmpty()) put("OPENROUTER_API_KEY", openRouterApiKey)
+        if (torBoxToken.isNotEmpty()) put("TORBOX_TOKEN", torBoxToken)
     }
 
     /** Values to scrub from anything written to the log. */
-    fun secrets(): List<String> = listOf(openSubtitlesApiKey, openSubtitlesPassword, realDebridToken, deepLApiKey)
+    fun secrets(): List<String> = listOf(openSubtitlesApiKey, openSubtitlesPassword, realDebridToken, deepLApiKey, geminiApiKey, openRouterApiKey, torBoxToken)
 
     override fun toString() = "Credentials(***)"
 }
@@ -36,6 +45,12 @@ class CredentialsForm(
     val removeRealDebrid: Boolean = false,
     val deepLApiKey: String = "",
     val removeDeepL: Boolean = false,
+    val geminiApiKey: String = "",
+    val removeGemini: Boolean = false,
+    val openRouterApiKey: String = "",
+    val removeOpenRouter: Boolean = false,
+    val torBoxToken: String = "",
+    val removeTorBox: Boolean = false,
 ) {
     override fun toString() = "CredentialsForm(***)"
 }
@@ -56,6 +71,9 @@ enum class CredentialError(val message: Int) {
     PASSWORD_INVALID(R.string.error_password_invalid),
     RD_TOKEN_INVALID(R.string.error_rd_token_invalid),
     DEEPL_KEY_INVALID(R.string.error_deepl_key_invalid),
+    GEMINI_KEY_INVALID(R.string.error_gemini_key_invalid),
+    OPENROUTER_KEY_INVALID(R.string.error_openrouter_key_invalid),
+    TORBOX_TOKEN_INVALID(R.string.error_torbox_token_invalid),
 }
 
 object CredentialsValidator {
@@ -63,6 +81,12 @@ object CredentialsValidator {
     private val RD_TOKEN = Regex("^[A-Za-z0-9]{20,128}$")
     /** DeepL Free keys end in ":fx"; the addon picks the free endpoint from that suffix. */
     private val DEEPL_KEY = Regex("^[A-Za-z0-9-]{20,128}(:fx)?$")
+    /** Google AI Studio keys (they may hold dots). */
+    private val GEMINI_KEY = Regex("^[A-Za-z0-9_.-]{20,128}$")
+    /** OpenRouter keys look like sk-or-v1-<hex>. */
+    private val OPENROUTER_KEY = Regex("^[A-Za-z0-9_-]{20,200}$")
+    /** TorBox API keys are UUIDs. */
+    private val TORBOX_TOKEN = Regex("^[A-Za-z0-9_-]{20,128}$")
     private val CONTROL = Regex("\\p{Cntrl}")
 
     /** Merges the form over the stored credentials (if any) and checks every field. */
@@ -103,8 +127,26 @@ object CredentialsValidator {
             errors += CredentialError.DEEPL_KEY_INVALID
         }
 
+        val gemini = when {
+            form.removeGemini -> ""
+            else -> form.geminiApiKey.trim().ifEmpty { stored?.geminiApiKey.orEmpty() }
+        }
+        if (gemini.isNotEmpty() && !GEMINI_KEY.matches(gemini)) errors += CredentialError.GEMINI_KEY_INVALID
+
+        val openRouter = when {
+            form.removeOpenRouter -> ""
+            else -> form.openRouterApiKey.trim().ifEmpty { stored?.openRouterApiKey.orEmpty() }
+        }
+        if (openRouter.isNotEmpty() && !OPENROUTER_KEY.matches(openRouter)) errors += CredentialError.OPENROUTER_KEY_INVALID
+
+        val torBox = when {
+            form.removeTorBox -> ""
+            else -> form.torBoxToken.trim().ifEmpty { stored?.torBoxToken.orEmpty() }
+        }
+        if (torBox.isNotEmpty() && !TORBOX_TOKEN.matches(torBox)) errors += CredentialError.TORBOX_TOKEN_INVALID
+
         return if (errors.isEmpty()) {
-            Validation.Ok(Credentials(apiKey, user, password, rdToken, deepL))
+            Validation.Ok(Credentials(apiKey, user, password, rdToken, deepL, gemini, openRouter, torBox))
         } else {
             Validation.Invalid(errors)
         }

@@ -81,6 +81,54 @@ test('reports health without exposing secrets', async () => {
   assert.equal(health['resources'].cacheLimitMB, 50);
   assert.deepEqual(health['providers'][0].quota, { remaining: 17 });
   assert.deepEqual(health['subtitles'], { served: { synced: 2 }, unavailable: 0 });
+  assert.equal(health['translation'], null, 'no translator configured');
+});
+
+test('health shows how much of the translation quota is used, and nothing when it cannot be read', async () => {
+  const withTranslation = async (usage: () => Promise<{ used: number; limit: number } | undefined>) => {
+    const served = createServer({
+      config: loadConfig({ configFile: writeConfig(), env: FULL_ENV }),
+      logger,
+      version: '0.1.0',
+      tools: { ffmpeg: { available: false }, ffprobe: { available: false } },
+      resources: { idle, lastSweep: () => undefined },
+      providers: [],
+      subtitles,
+      translation: { provider: 'deepl', usage },
+    });
+    await new Promise<void>((resolve) => served.listen(0, '127.0.0.1', resolve));
+    const body = await (await fetch(`http://127.0.0.1:${(served.address() as AddressInfo).port}/health`)).text();
+    served.close();
+    assert.doesNotMatch(body, /DeepL-Auth|apiKey/);
+    return (JSON.parse(body) as Record<string, any>)['translation'];
+  };
+  assert.deepEqual(await withTranslation(async () => ({ used: 24_500, limit: 500_000 })), { provider: 'deepl', used: 24_500, limit: 500_000 });
+  assert.deepEqual(await withTranslation(async () => undefined), { provider: 'deepl', used: null, limit: null });
+});
+
+test('health lists the quota of every translation provider, null where it cannot be known', async () => {
+  const served = createServer({
+    config: loadConfig({ configFile: writeConfig(), env: FULL_ENV }),
+    logger,
+    version: '0.1.0',
+    tools: { ffmpeg: { available: false }, ffprobe: { available: false } },
+    resources: { idle, lastSweep: () => undefined },
+    providers: [],
+    subtitles,
+    translationQuotas: [
+      { provider: 'deepl', unit: 'characters', usage: async () => ({ used: 10, limit: 500 }) },
+      { provider: 'gemini', unit: 'requests', usage: async () => undefined },
+      { provider: 'openrouter', unit: 'requests', usage: async () => ({ used: 3, limit: 50 }) },
+    ],
+  });
+  await new Promise<void>((resolve) => served.listen(0, '127.0.0.1', resolve));
+  const body = (await (await fetch(`http://127.0.0.1:${(served.address() as AddressInfo).port}/health`)).json()) as Record<string, any>;
+  served.close();
+  assert.deepEqual(body['translationProviders'], [
+    { provider: 'deepl', unit: 'characters', used: 10, limit: 500 },
+    { provider: 'gemini', unit: 'requests', used: null, limit: null },
+    { provider: 'openrouter', unit: 'requests', used: 3, limit: 50 },
+  ]);
 });
 
 test('Stremio requests wake the addon, health checks do not', async () => {
@@ -142,8 +190,16 @@ test('serves the prepared track as UTF-8 SRT', async () => {
   assert.equal(track?.episode, 2);
 });
 
-test('answers 404 for unavailable or malformed tracks', async () => {
-  assert.equal((await fetch(`${base}/sub/movie/tt0000001/pt-BR/_.srt`)).status, 404);
+test('a track with no subtitle is a short on-screen message, never a 404 (it crashes Stremio 2.6.0)', async () => {
+  const res = await fetch(`${base}/sub/movie/tt0000001/pt-BR/_.srt`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'application/x-subrip; charset=utf-8');
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  assert.match(await res.text(), /\[RightSubs\] Nenhuma legenda foi encontrada/);
+  assert.equal((await fetch(`${base}/sub/movie/tt0000001/pt-BR/_.srt`, { method: 'HEAD' })).status, 200);
+});
+
+test('answers 404 for malformed tracks', async () => {
   assert.equal((await fetch(`${base}/sub/movie/tt0000001/xx-YY/_.srt`)).status, 404);
   assert.equal((await fetch(`${base}/sub/movie/nope/pt-BR/_.srt`)).status, 404);
 });

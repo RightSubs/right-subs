@@ -147,6 +147,9 @@ class PhoneSetupServer(
             password = fields["password"].orEmpty(),
             realDebridToken = fields["rdToken"].orEmpty(),
             deepLApiKey = fields["deepLKey"].orEmpty(),
+            geminiApiKey = fields["geminiKey"].orEmpty(),
+            openRouterApiKey = fields["openRouterKey"].orEmpty(),
+            torBoxToken = fields["torBoxToken"].orEmpty(),
         )
         return when (val result = submit(credentials)) {
             is Validation.Ok -> {
@@ -193,8 +196,14 @@ class PhoneSetupServer(
                 <input name="password" type="password"></label>
               <label>${escape(text(R.string.hint_rd_token))}
                 <input name="rdToken" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+              <label>${escape(text(R.string.hint_torbox_token))}
+                <input name="torBoxToken" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
               <label>${escape(text(R.string.hint_deepl_key))}
                 <input name="deepLKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+              <label>${escape(text(R.string.hint_gemini_key))}
+                <input name="geminiKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+              <label>${escape(text(R.string.hint_openrouter_key))}
+                <input name="openRouterKey" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
               $keep
               <button>${escape(text(R.string.web_send))}</button>
             </form>

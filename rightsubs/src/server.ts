@@ -17,8 +17,13 @@ import { EmbeddedReferences } from './sync/embedded-reference.ts';
 import { FileLocator, type FileSource } from './streams/locator.ts';
 import { StreamProxy } from './streams/proxy.ts';
 import { RealDebridSource } from './streams/realdebrid.ts';
+import { TorBoxSource } from './streams/torbox.ts';
 import { StremioServerSource } from './streams/stremio.ts';
-import { DeepL } from './translation/deepl.ts';
+import { DeepL, UsageCache } from './translation/deepl.ts';
+import { DailyCount } from './translation/daily-count.ts';
+import { FallbackTranslator, QuotaGuard, type ChainedProvider } from './translation/fallback.ts';
+import { GeminiTranslator, LLM_BATCH, openRouterUsage, OpenRouterTranslator } from './translation/llm.ts';
+import { ResumableTranslator } from './translation/resume.ts';
 import { SubtitleCache } from './subtitles/cache.ts';
 import { SubtitleService } from './subtitles/service.ts';
 
@@ -70,6 +75,9 @@ if (args.check) {
   if (config.streams.realdebrid) {
     console.log(`  realdebrid: ${config.streams.realdebrid.enabled ? 'enabled' : 'disabled'}`);
   }
+  if (config.streams.torbox) {
+    console.log(`  torbox: ${config.streams.torbox.enabled ? 'enabled' : 'disabled'}`);
+  }
   if (config.streams.stremio) {
     console.log(`  stremio:    ${config.streams.stremio.enabled ? 'enabled' : 'disabled'}`);
   }
@@ -109,6 +117,11 @@ if (realdebrid?.enabled && realdebrid.token) {
   const { token, lookback, timeoutMs } = realdebrid;
   sources.push(new RealDebridSource({ token, lookback, timeoutMs, fetch: globalThis.fetch, logger, version }));
 }
+const torbox = config.streams.torbox;
+if (torbox?.enabled && torbox.token) {
+  const { token, lookback, timeoutMs } = torbox;
+  sources.push(new TorBoxSource({ token, lookback, timeoutMs, fetch: globalThis.fetch, logger, version }));
+}
 const stremio = config.streams.stremio;
 if (stremio?.enabled) {
   sources.push(new StremioServerSource({ url: stremio.url, timeoutMs: stremio.timeoutMs, fetch: globalThis.fetch }));
@@ -146,14 +159,75 @@ resources.onIdle(() => {
   inspector?.release();
   kitsu.release();
 });
-const deeplConfig = config.translation.deepl;
-const translator =
+const translationConfig = config.translation;
+const deeplConfig = translationConfig.deepl;
+let usageCache: UsageCache | undefined;
+const deepl =
   deeplConfig.enabled && deeplConfig.apiKey
     ? new DeepL({
         apiKey: deeplConfig.apiKey,
         timeoutMs: deeplConfig.timeoutMs,
         fetch: globalThis.fetch,
-        onCharacters: (count) => logger.info('translation.billed', { characters: count }),
+        onCharacters: (count) => {
+          logger.info('translation.billed', { characters: count });
+          usageCache?.invalidate();
+        },
+      })
+    : undefined;
+if (deepl) usageCache = new UsageCache(() => deepl.usage());
+const remainingCharacters = async () => {
+  const usage = await usageCache?.get();
+  return usage && usage.limit - usage.used;
+};
+// The providers that are on, in the user's order. DeepL's quota is known, so it refuses what it cannot finish; the others fail by error.
+const chain: ChainedProvider[] = [];
+const quotas: { provider: string; unit: 'characters' | 'requests'; usage: () => Promise<{ used: number; limit: number } | undefined> }[] = [];
+for (const name of translationConfig.order) {
+  if (name === 'deepl' && deepl && usageCache) {
+    const cache = usageCache;
+    quotas.push({ provider: 'deepl', unit: 'characters', usage: () => cache.get() });
+  }
+  if (name === 'deepl' && deepl) chain.push({ name: 'DeepL', translator: new QuotaGuard(deepl, 'DeepL', remainingCharacters) });
+  const { gemini, openrouter } = translationConfig;
+  if (name === 'gemini' && gemini.enabled && gemini.apiKey) {
+    // Google exposes no counter for a key: an estimate from this device's own requests today.
+    const count = new DailyCount(cache, 'gemini');
+    quotas.push({ provider: 'gemini', unit: 'requests', usage: async () => ({ used: await count.get(), limit: gemini.dailyRequests }) });
+    chain.push({
+      name: 'Gemini',
+      translator: new GeminiTranslator({
+        apiKey: gemini.apiKey,
+        models: gemini.models,
+        timeoutMs: gemini.timeoutMs,
+        fetch: globalThis.fetch,
+        onRequest: () => void count.increment(),
+      }),
+    });
+  }
+  if (name === 'openrouter' && openrouter.enabled && openrouter.apiKey) {
+    const key = { apiKey: openrouter.apiKey, timeoutMs: openrouter.timeoutMs, fetch: globalThis.fetch };
+    const usage = new UsageCache(async () => {
+      const read = await openRouterUsage(key);
+      if (!read) throw new Error('no daily cap');
+      return read;
+    });
+    quotas.push({ provider: 'openrouter', unit: 'requests', usage: () => usage.get() });
+    chain.push({
+      name: 'OpenRouter',
+      translator: new OpenRouterTranslator({ apiKey: openrouter.apiKey, models: [openrouter.model], timeoutMs: openrouter.timeoutMs, fetch: globalThis.fetch, onRequest: () => usage.invalidate() }),
+    });
+  }
+}
+// Translated batches are kept as they arrive, so an interrupted translation is not paid twice, and the next provider finishes what the previous one started.
+// With DeepL alone the quota is also checked for the whole subtitle before spending; with LLMs in the chain batches are larger (fewer requests per day).
+const onlyDeepl = chain.length === 1 && chain[0]?.name === 'DeepL';
+const resumable =
+  chain.length > 0
+    ? new ResumableTranslator(onlyDeepl ? deepl! : new FallbackTranslator(chain, logger), {
+        cache,
+        logger,
+        ...(onlyDeepl ? { remaining: remainingCharacters } : {}),
+        ...(chain.some((provider) => provider.name !== 'DeepL') ? { batchSize: LLM_BATCH } : {}),
       })
     : undefined;
 const subtitles = new SubtitleService({
@@ -168,13 +242,26 @@ const subtitles = new SubtitleService({
   sync: { enabled: config.sync.enabled, minConfidence: config.sync.minConfidence },
   ...(inspector ? { inspect: (filename: string | undefined, videoSize?: number) => inspector.inspect(filename, videoSize) } : {}),
   ...(embedded ? { embedded } : {}),
-  ...(translator ? { translator } : {}),
-  ...(translator && deeplConfig.forceFrom.length > 0 ? { forceFrom: deeplConfig.forceFrom } : {}),
+  ...(resumable ? { translator: resumable } : {}),
+  ...(resumable && deeplConfig.forceFrom.length > 0 ? { forceFrom: deeplConfig.forceFrom } : {}),
 });
 resources.onIdle(() => subtitles.release());
 
 const { host, port } = config.server;
-const server = createServer({ config, logger, version, tools, resources, providers, subtitles, streams, locator, kitsu });
+const server = createServer({
+  config,
+  logger,
+  version,
+  tools,
+  resources,
+  providers,
+  subtitles,
+  streams,
+  locator,
+  kitsu,
+  ...(quotas.length > 0 ? { translationQuotas: quotas } : {}),
+  ...(usageCache ? { translation: { provider: 'deepl', usage: () => (usageCache as UsageCache).get() } } : {}),
+});
 
 server.on('error', (err) => {
   logger.error('server.error', { message: err.message });

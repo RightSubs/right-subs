@@ -9,7 +9,16 @@ object ConfigWriter {
     const val HOST = "127.0.0.1"
     const val PORT = 7000
 
-    fun render(template: String, realDebrid: Boolean, deepL: Boolean = false, languages: LanguageChoice = Languages.DEFAULT): String {
+    fun render(
+        template: String,
+        realDebrid: Boolean,
+        deepL: Boolean = false,
+        languages: LanguageChoice = Languages.DEFAULT,
+        gemini: Boolean = false,
+        openRouter: Boolean = false,
+        torBox: Boolean = false,
+        translationOrder: TranslationOrder = TranslationOrder.DEFAULT,
+    ): String {
         var lines = template.lines()
         // Only apps on this device reach the addon.
         lines = set(lines, listOf("server"), "host", HOST)
@@ -23,8 +32,14 @@ object ConfigWriter {
         }
         lines = set(lines, listOf("sync"), "referenceLanguages", "[${languages.reference.orEmpty()}]")
         lines = set(lines, listOf("streams", "realdebrid"), "enabled", realDebrid.toString())
+        // Same for TorBox: only with a token (the addon's token stays a ${TORBOX_TOKEN} placeholder).
+        lines = set(lines, listOf("streams", "torbox"), "enabled", torBox.toString())
         // Last resort: only with a key (the addon's apiKey stays a ${DEEPL_API_KEY} placeholder).
         lines = set(lines, listOf("translation", "deepl"), "enabled", deepL.toString())
+        lines = set(lines, listOf("translation", "gemini"), "enabled", gemini.toString())
+        lines = set(lines, listOf("translation", "openrouter"), "enabled", openRouter.toString())
+        // Who goes first; a service with no key is skipped by the addon whatever the order says.
+        lines = set(lines, listOf("translation"), "order", translationOrder.providers.joinToString(", ", "[", "]") { it.id })
         // Stremio runs on this same device: torrents without Real-Debrid are found in its server.
         lines = set(lines, listOf("streams", "stremio"), "enabled", "true")
         return lines.joinToString("\n")

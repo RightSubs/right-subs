@@ -119,6 +119,16 @@ streams:
 
 Without indexers (companion mode), RightSubs looks for the file that is playing in these sources, in this order; the first that finds it wins:
 
+### `torbox`
+
+The same companion mode with a **TorBox** account (`src/streams/torbox.ts`): when you click a stream in Torrentio (or another addon that resolves through TorBox), the torrent is in your account; RightSubs finds the played file among the last `lookback` torrents by **name and size** (a same-name file of another size is another release) and asks TorBox for its direct link (`/torrents/requestdl`). That link carries your token, so it is never logged. Read-only on your library: nothing is added or removed. Used for the same things as Real-Debrid: reading the file's fps and the embedded track (timing check of the translation). Torrents only (web downloads and Usenet are not looked at). Both can be on; they are asked in order (Real-Debrid, TorBox, Stremio's server).
+
+| Option | Default | What it does |
+|---|---|---|
+| `enabled` | `true` when the block exists | Requires `token` (`${TORBOX_TOKEN}`, in the TorBox settings under API). In the APK it turns on by itself when there is a token. |
+| `lookback` | `20` | How many of the most recent torrents are searched. |
+| `timeoutMs` | `5000` | Time limit of each request. |
+
 ### `realdebrid`
 
 Real-Debrid download history (`RD_TOKEN` in `.env`). The link shows up on Stremio's 2nd subtitle request.
@@ -187,6 +197,36 @@ The translated subtitle:
 | `apiKey` | — | DeepL key (`${DEEPL_API_KEY}`); one ending in `:fx` uses the free endpoint (500,000 characters/month; an episode uses ~21,000). |
 | `timeoutMs` | `15000` | Time limit of each DeepL request. |
 | `forceFrom` | `[]` | **TESTING ONLY.** With languages (e.g. `[en]`), ignores the subtitles that already exist in the primary and secondary languages and **always** translates, only from these languages, with the same timing check. The result goes to a separate cache (`translated-forced:`). Lets you see the translation of an episode that already has a subtitle (Creature Commandos S01E03). There is no field in the app; only in the `config.yaml` of an addon running on a computer. Uses DeepL quota on every episode. |
+
+## `translation.order`, `translation.gemini`, `translation.openrouter`
+
+DeepL is not the only translator: **Gemini** and **OpenRouter** (both LLMs) can take its place or finish what it started. They follow the same rules as DeepL (same source choice, timing check, notice, provisional subtitle, cache); see [DEEPL-TRANSLATION.md](DEEPL-TRANSLATION.md#other-services-gemini-openrouter-and-the-order).
+
+```yaml
+translation:
+  order: [deepl, openrouter, gemini]   # who is tried first, second, third
+  gemini:
+    enabled: true
+    apiKey: ${GEMINI_API_KEY}
+  openrouter:
+    enabled: true
+    apiKey: ${OPENROUTER_API_KEY}
+```
+
+| Option | Default | What it does |
+|---|---|---|
+| `order` | `[deepl, openrouter, gemini]` | The services in the order they are tried, for **each batch** of lines. One that is off (`enabled: false`), has no key, ran out of quota or failed hands the batch to the next. A service may be left out; listing one twice is an error. |
+| `gemini.enabled` | `false` | Requires `apiKey` (Google AI Studio). In the APK it turns on by itself when there is a key. |
+| `gemini.apiKey` | — | `${GEMINI_API_KEY}`. Only sent in a request header. |
+| `gemini.models` | `[gemini-3.1-flash-lite, gemini-3.5-flash-lite]` | Tried in this order for every request. A model that answers 503 ("high demand", frequent on the free tier) or 429 hands the request to the next one, which has its own capacity and quota; when all were only busy, the round is repeated after 2, 5 and 10 s. Gemini 3 models are asked for minimal thinking (`thinkingLevel`), since translating needs none. |
+| `gemini.timeoutMs` | `60000` | Time limit of each request (200 lines each). |
+| `gemini.dailyRequests` | `500` | The free tier's requests per day. **Only** used for the usage line in `/health` and the app (Google reports no usage for a key, so RightSubs counts its own requests since midnight Pacific time: an estimate that does not see other apps using the same key). It never blocks a request. |
+| `openrouter.enabled` | `false` | Requires `apiKey`. In the APK it turns on by itself when there is a key. |
+| `openrouter.apiKey` | — | `${OPENROUTER_API_KEY}`. Only sent in a request header. |
+| `openrouter.model` | `nvidia/nemotron-3.5-lightning:free` | Any model of openrouter.ai. Not `openrouter/free`: that router picks another free model on every request and sometimes a tiny one (liquid/lfm-3-1.7b answered nothing, only reasoning). Free model ids come and go: if it stops existing the log says so (404) and you change it here. `:free` models are capped per day (50 requests; 1,000 after buying credits). |
+| `openrouter.timeoutMs` | `180000` | Time limit of each request. The free models reason a lot and take 40 to 90 s for 200 lines (measured 2026-11-25), and `openrouter/free` picks a different one every time. |
+
+**Privacy:** on their free tiers Gemini and OpenRouter's providers may use the text sent to them to train models. Only subtitle text is sent, never keys, links or file names.
 
 ## `resources`
 

@@ -31,7 +31,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -e BOX=<ip> -v rightsubs-adb:/root/.android r
   adb forward tcp:7000 tcp:7000 >/dev/null; curl -s http://127.0.0.1:7000/health'
 ```
 
-Of interest: `tools.ffmpeg.available`, `providers[0].login` (`ok`, `no_account`, `rejected`, `pending`), `locator` (Real-Debrid), `subtitles.served` and `subtitles.recentUnsynced` (reset on restart).
+Of interest: `translation` / `translationProviders` (each translator's quota: DeepL characters `used` of `limit` this month, OpenRouter free requests today, Gemini an estimate; nulls when it cannot be read), `tools.ffmpeg.available`, `providers[0].login` (`ok`, `no_account`, `rejected`, `pending`), `locator` (Real-Debrid/TorBox), `subtitles.served` and `subtitles.recentUnsynced` (reset on restart).
 
 ## Reading the log
 
@@ -48,7 +48,7 @@ In the normal APK, only through the app's **Log** button (the user reads it on t
 
 Lines that matter for each movie:
 1. `subtitles.choice`: `candidates` per language (those in `referenceLanguages`, default `en`, are here too) and the chosen language.
-2. `file.located`: `source` = `realdebrid` or `stremio` (torrent without RD: no embedded track).
+2. `file.located`: `source` = `realdebrid`, `torbox` or `stremio` (torrent without RD: no embedded track).
 3. `video.probed`: embedded tracks, fps.
 4. `embedded.extracted`/`embedded.failed`: windows, `timeoutMs` (grows with the bitrate), `ms`.
 5. `subtitles.served`: `sync.status` (`exact`, `synced`, `already_synced`, `likely_synced`, `fps_corrected`, `no_reference`, `low_confidence`, `budget_exceeded`), `offsetMs`, fps ratio and `referenceMatch` (`same_edit` = reference from another release of the same edition).

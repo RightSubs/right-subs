@@ -26,7 +26,7 @@ test('every translation has every text, not empty, with the same placeholders an
 
 test('the texts keep what the viewer must recognize: the addon name, DeepL and the 30 s wait', () => {
   for (const [tag, messages] of Object.entries(MESSAGES)) {
-    for (const key of ['statusLabel', 'statusPending', 'statusReady', 'placeholder', 'embeddedLabel', 'embeddedNotice'] as const) {
+    for (const key of ['statusLabel', 'statusPending', 'statusReady', 'placeholder', 'embeddedLabel', 'embeddedNotice', 'unavailable'] as const) {
       assert.match(messages[key], /RightSubs/, `${tag}.${key}`);
     }
     for (const key of ['statusLabel', 'statusPending', 'placeholder'] as const) assert.match(messages[key], /30/, `${tag}.${key}`);

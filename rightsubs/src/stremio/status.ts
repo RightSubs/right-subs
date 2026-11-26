@@ -42,6 +42,17 @@ export function placeholderSrt(language: Language): Buffer {
   return repeated(messagesFor(language).placeholder);
 }
 
+/**
+ * What the real track answers when nothing was found for the video. It must be a subtitle, never
+ * a 404: Stremio 2.6.0's streaming server aborts (SIGABRT, "pthread_mutex_lock called on a
+ * destroyed mutex") when the address of an external subtitle answers 404, and the app closes
+ * (measured on Android 16, 2026-11-26; an empty body gives a 500 instead, a one-line subtitle works).
+ * On screen for a few seconds, then it gets out of the way.
+ */
+export function unavailableSrt(language: Language): Buffer {
+  return Buffer.from(serializeSrt([{ startMs: 500, endMs: 20_000, text: messagesFor(language).unavailable }]), 'utf8');
+}
+
 const REPEAT_EVERY_MS = 30_000;
 /** On screen almost all the time (5 s off in every 30): the message is the only thing telling what to do. */
 const SHOW_FOR_MS = 25_000;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { findLanguage, type Language } from '../src/languages/languages.ts';
-import { DeepL, deeplSource, deeplTarget, translateCues } from '../src/translation/deepl.ts';
+import { DeepL, deeplSource, deeplTarget, translateCues, UsageCache } from '../src/translation/deepl.ts';
 
 const ptBR = findLanguage('pt-BR') as Language;
 const en = findLanguage('en') as Language;
@@ -122,4 +122,71 @@ test('many batches are translated a few at a time and come back in order', async
   const out = await new DeepL({ apiKey: 'k', timeoutMs: 1000, fetch: slow.fetch as unknown as typeof fetch }).translate(texts, ptBR, en);
   assert.deepEqual(out, texts.map((t) => `PT ${t}`), 'order kept');
   assert.ok(peak > 1 && peak <= 4, `peak ${peak}`);
+});
+
+function usageApi(reply: () => Response) {
+  const calls: { url: string; auth: string | null }[] = [];
+  const fetchDouble = (async (url: string, init: RequestInit) => {
+    calls.push({ url, auth: new Headers(init.headers).get('authorization') });
+    return reply();
+  }) as unknown as typeof fetch;
+  return { calls, fetch: fetchDouble };
+}
+const usageResponse = (used: number, limit: number) => () => new Response(JSON.stringify({ character_count: used, character_limit: limit }));
+
+test('reads what the key has used this month, on the host of its plan', async () => {
+  const free = usageApi(usageResponse(24_500, 500_000));
+  assert.deepEqual(await new DeepL({ apiKey: 'k:fx', timeoutMs: 1000, fetch: free.fetch }).usage(), { used: 24_500, limit: 500_000 });
+  assert.equal(free.calls[0]?.url, 'https://api-free.deepl.com/v2/usage');
+  assert.equal(free.calls[0]?.auth, 'DeepL-Auth-Key k:fx');
+  const pro = usageApi(usageResponse(1, 2));
+  await new DeepL({ apiKey: 'k', timeoutMs: 1000, fetch: pro.fetch }).usage();
+  assert.equal(pro.calls[0]?.url, 'https://api.deepl.com/v2/usage');
+});
+
+test('a rejected key or a malformed answer is an error, not a number', async () => {
+  const rejected = usageApi(() => new Response('', { status: 403 }));
+  await assert.rejects(new DeepL({ apiKey: 'k', timeoutMs: 1000, fetch: rejected.fetch }).usage(), /respondeu 403/);
+  const odd = usageApi(() => new Response(JSON.stringify({ character_count: 'x' })));
+  await assert.rejects(new DeepL({ apiKey: 'k', timeoutMs: 1000, fetch: odd.fetch }).usage(), /unexpected response/);
+});
+
+test('the usage is reused for a while, asked again after a translation, and never throws', async () => {
+  let clock = 1_000;
+  let used = 100;
+  let reads = 0;
+  const cache = new UsageCache(async () => ({ used: ++reads && used, limit: 500_000 }), () => clock);
+  assert.deepEqual(await cache.get(), { used: 100, limit: 500_000 });
+  used = 200;
+  assert.equal((await cache.get())?.used, 100, 'reused');
+  clock += 9 * 60_000;
+  assert.equal((await cache.get())?.used, 100, 'still within the 10 minutes');
+  cache.invalidate();
+  assert.equal((await cache.get())?.used, 200, 'a translation drops it');
+  clock += 11 * 60_000;
+  await cache.get();
+  assert.equal(reads, 3, 'and it expires');
+
+  let failing = 0;
+  const offline = new UsageCache(async () => {
+    failing += 1;
+    throw new Error('offline');
+  }, () => clock);
+  assert.equal(await offline.get(), undefined);
+  assert.equal(await offline.get(), undefined);
+  assert.equal(failing, 1, 'a failure is not retried at once');
+  clock += 61_000;
+  await offline.get();
+  assert.equal(failing, 2);
+});
+
+test('simultaneous readings share one request', async () => {
+  let reads = 0;
+  const cache = new UsageCache(async () => {
+    reads += 1;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { used: 1, limit: 2 };
+  });
+  await Promise.all([cache.get(), cache.get(), cache.get()]);
+  assert.equal(reads, 1);
 });
